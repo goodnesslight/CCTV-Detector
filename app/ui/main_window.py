@@ -1,8 +1,9 @@
 from PySide6.QtGui import QAction, QCloseEvent
-from PySide6.QtWidgets import QLabel, QMainWindow, QStatusBar, QTabWidget
+from PySide6.QtWidgets import QMainWindow, QTabWidget
 
-from app.config import APP_NAME, APP_VERSION
+from app.config import APP_NAME, APP_TITLE, APP_VERSION
 from app.services import Services
+from app.ui.icon import create_app_icon
 from app.ui.tabs.events_tab import EventsTab
 from app.ui.tabs.live_tab import LiveTab
 from app.ui.tabs.persons_tab import PersonsTab
@@ -15,7 +16,8 @@ from app.ui.tabs.zones_tab import ZonesTab
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle(f"{APP_NAME} v{APP_VERSION}")
+        self.setWindowTitle(APP_TITLE)
+        self.setWindowIcon(create_app_icon())
         self.resize(1400, 900)
 
         self._services = Services()
@@ -23,30 +25,26 @@ class MainWindow(QMainWindow):
         self._tabs = QTabWidget()
         self._tabs.addTab(LiveTab(self._services), "Прямая трансляция")
         self._tabs.addTab(VideoAnalysisTab(self._services), "Анализ видео")
-        self._tabs.addTab(EventsTab(self._services), "События")
         self._tabs.addTab(PersonsTab(self._services), "Персоны")
         self._tabs.addTab(ZonesTab(self._services), "Зоны")
+        self._tabs.addTab(EventsTab(self._services), "События")
         self._tabs.addTab(StatisticsTab(self._services), "Статистика")
         self._tabs.addTab(SettingsTab(self._services), "Настройки")
         self.setCentralWidget(self._tabs)
 
         self._build_menu()
 
-        status = QStatusBar()
-        status.addPermanentWidget(QLabel("Готов"))
-        self.setStatusBar(status)
-
     def _build_menu(self) -> None:
         menubar = self.menuBar()
 
         file_menu = menubar.addMenu("&Файл")
-        quit_action = QAction("&Выход", self)
+        quit_action = QAction("&Вихід", self)
         quit_action.setShortcut("Ctrl+Q")
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
 
-        help_menu = menubar.addMenu("&Справка")
-        about_action = QAction("О программе", self)
+        help_menu = menubar.addMenu("&Довідка")
+        about_action = QAction("Про програму", self)
         about_action.triggered.connect(self._show_about)
         help_menu.addAction(about_action)
 
@@ -55,11 +53,10 @@ class MainWindow(QMainWindow):
 
         QMessageBox.about(
             self,
-            "О программе",
-            f"<h3>{APP_NAME}</h3>"
-            f"<p>Версия {APP_VERSION}</p>"
-            "<p>Дипломный проект: система безопасности помещений на базе "
-            "видеонаблюдения и искусственного интеллекта.</p>",
+            "Про програму",
+            f"<h3>{APP_TITLE}</h3>"
+            f"<p>Версія {APP_VERSION}</p>"
+            "<p>Дипломний проект від Майбороди Євгєнія Олександровича з ІК-22</p>",
         )
 
     def closeEvent(self, event: QCloseEvent) -> None:

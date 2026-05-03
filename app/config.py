@@ -1,7 +1,11 @@
 from pathlib import Path
 
 APP_NAME = "Video Security System"
-APP_VERSION = "0.1.0"
+APP_TITLE = (
+    "Система безпеки приміщення на базі "
+    "відеоспостереження та штучного інтелекту"
+)
+APP_VERSION = "1.0.0"
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT_DIR / "data"
