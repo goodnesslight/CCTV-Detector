@@ -1,0 +1,43 @@
+# === Video Security System — Python dependencies ===
+#
+# Установка (Python 3.12, RTX 3060, CUDA 12.x):
+#
+#   1. Создать venv:
+#        python -m venv .venv
+#        .venv\Scripts\activate
+#
+#   2. PyTorch с CUDA 12.1 (отдельно — у него собственный index):
+#        pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+#
+#   3. Остальное:
+#        pip install -r requirements.txt
+#
+#   На Stage 1 достаточно установить только PySide6 — остальное подтянем по мере роста проекта.
+
+# --- GUI (Stage 1+) ---
+PySide6>=6.6.0
+
+# --- Video / CV (Stage 2+) ---
+opencv-python>=4.9.0
+numpy>=1.26.0,<2.0
+Pillow>=10.0.0
+
+# --- Detection (Stage 3+) ---
+ultralytics>=8.2.0
+
+# --- Face recognition (Stage 4+) ---
+# Используем встроенные в opencv-python YuNet (детектор) + SFace (распознаватель).
+# Модели качаются в data/models/ при первом запуске. Дополнительные пакеты не нужны.
+
+# --- Geometry for zones (Stage 5) ---
+# Используем cv2.pointPolygonTest — встроено в opencv-python, shapely не нужен.
+
+# --- Alerts (Stage 6) ---
+simpleaudio>=1.0.4
+pyttsx3>=2.90
+
+# --- Tracking (Stage 9) ---
+supervision>=0.21.0
+
+# --- Charts (Statistics tab) ---
+pyqtgraph>=0.13.0
