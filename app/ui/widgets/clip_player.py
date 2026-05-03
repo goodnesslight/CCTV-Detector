@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QSlider,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -42,6 +43,21 @@ class ClipPlayer(QWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
         self._player.setVideoOutput(self._video)
+
+        self._empty_placeholder = QLabel("Нет видео", self)
+        self._empty_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_placeholder.setStyleSheet(
+            "background-color: #111; color: #666; font-size: 16px; "
+            "border: 1px solid #333;"
+        )
+        self._empty_placeholder.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+
+        self._video_stack = QStackedWidget(self)
+        self._video_stack.addWidget(self._empty_placeholder)  # index 0 — empty
+        self._video_stack.addWidget(self._video)              # index 1 — video
+        self._video_stack.setCurrentIndex(0)
 
         self._info_label = QLabel("Файл не выбран")
         self._info_label.setStyleSheet("color: #888; padding: 4px;")
@@ -76,7 +92,7 @@ class ClipPlayer(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._video, 1)
+        layout.addWidget(self._video_stack, 1)
         layout.addWidget(self._info_label)
         layout.addLayout(controls)
 
@@ -89,12 +105,16 @@ class ClipPlayer(QWidget):
             self._play_btn.setText("▶ Играть")
             self._slider.setRange(0, 0)
             self._time_label.setText("0:00.00 / 0:00.00")
+            self._video_stack.setCurrentIndex(0)
             return
         if not path.exists():
             self._player.stop()
             self._info_label.setText(f"Файл не найден: {path}")
             self._play_btn.setEnabled(False)
+            self._empty_placeholder.setText(f"Файл не найден:\n{path.name}")
+            self._video_stack.setCurrentIndex(0)
             return
+        self._empty_placeholder.setText("Нет видео")
         self._info_label.setText(f"Файл: {path.name}")
         self._player.setSource(QUrl.fromLocalFile(str(path.resolve())))
         if autoplay:
@@ -103,6 +123,7 @@ class ClipPlayer(QWidget):
         else:
             self._play_btn.setText("▶ Играть")
         self._play_btn.setEnabled(True)
+        self._video_stack.setCurrentIndex(1)
 
     def seek_to(self, seconds: float, autoplay: bool = True) -> None:
         ms = max(0, int(seconds * 1000))

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QSplitter,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -89,6 +90,15 @@ class VideoAnalysisTab(QWidget):
         self._events_list.itemActivated.connect(self._on_event_activated)
         self._events_list.itemSelectionChanged.connect(self._on_event_activated_via_selection)
 
+        self._events_empty = QLabel("Нет событий")
+        self._events_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._events_empty.setStyleSheet("color: #666; font-size: 14px;")
+
+        self._events_stack = QStackedWidget()
+        self._events_stack.addWidget(self._events_empty)
+        self._events_stack.addWidget(self._events_list)
+        self._events_stack.setCurrentIndex(0)
+
         self._status_label = QLabel("")
         self._status_label.setStyleSheet("color: #888; padding: 4px;")
         self._status_label.setWordWrap(True)
@@ -111,7 +121,7 @@ class VideoAnalysisTab(QWidget):
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.addWidget(QLabel("События (двойной клик — перейти к моменту):"))
-        right_layout.addWidget(self._events_list, 1)
+        right_layout.addWidget(self._events_stack, 1)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self._player)
@@ -249,6 +259,7 @@ class VideoAnalysisTab(QWidget):
         item = QListWidgetItem(text)
         item.setData(EVENT_DATA_ROLE, len(self._events) - 1)
         self._events_list.addItem(item)
+        self._events_stack.setCurrentIndex(1)
 
     @Slot(int, float)
     def _on_finished_ok(self, frames: int, elapsed: float) -> None:
@@ -285,6 +296,7 @@ class VideoAnalysisTab(QWidget):
     def _clear_events(self) -> None:
         self._events.clear()
         self._events_list.clear()
+        self._events_stack.setCurrentIndex(0)
         self._progress.setValue(0)
         self._progress.setFormat("")
 

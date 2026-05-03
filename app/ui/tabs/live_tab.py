@@ -3,7 +3,6 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
-    QFileDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -15,14 +14,13 @@ from PySide6.QtWidgets import (
 from app.core.alert_event import AlertEvent
 from app.core.pipeline import DetectionPipeline, Detector
 from app.core.types import ProcessingResult
-from app.core.video_source import rtsp_stream, usb_camera, video_file
+from app.core.video_source import rtsp_stream, usb_camera
 from app.core.video_worker import VideoWorker
 from app.services import Services
 from app.ui.widgets.camera_view import CameraView
 
 SOURCE_USB = 0
 SOURCE_RTSP = 1
-SOURCE_FILE = 2
 
 
 class LiveTab(QWidget):
@@ -32,15 +30,11 @@ class LiveTab(QWidget):
         self._worker: VideoWorker | None = None
 
         self._type_combo = QComboBox()
-        self._type_combo.addItems(["USB-камера", "RTSP-поток", "Видеофайл"])
+        self._type_combo.addItems(["USB-камера", "RTSP-поток"])
         self._type_combo.currentIndexChanged.connect(self._on_type_changed)
 
         self._spec_input = QLineEdit("0")
         self._spec_input.setPlaceholderText("Индекс камеры (0, 1, ...)")
-
-        self._browse_btn = QPushButton("Обзор...")
-        self._browse_btn.clicked.connect(self._browse_file)
-        self._browse_btn.hide()
 
         self._person_check = QCheckBox("Люди (YOLO)")
         self._person_check.setChecked(True)
@@ -78,7 +72,6 @@ class LiveTab(QWidget):
         controls.addWidget(QLabel("Источник:"))
         controls.addWidget(self._type_combo)
         controls.addWidget(self._spec_input, 1)
-        controls.addWidget(self._browse_btn)
         controls.addWidget(self._person_check)
         controls.addWidget(self._face_check)
         controls.addWidget(self._tracking_check)
@@ -99,26 +92,9 @@ class LiveTab(QWidget):
         if idx == SOURCE_USB:
             self._spec_input.setText("0")
             self._spec_input.setPlaceholderText("Индекс камеры (0, 1, ...)")
-            self._browse_btn.hide()
-        elif idx == SOURCE_RTSP:
-            self._spec_input.clear()
-            self._spec_input.setPlaceholderText("rtsp://user:pass@host:port/stream")
-            self._browse_btn.hide()
         else:
             self._spec_input.clear()
-            self._spec_input.setPlaceholderText("Путь к видеофайлу")
-            self._browse_btn.show()
-
-    @Slot()
-    def _browse_file(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Выберите видеофайл",
-            "",
-            "Видео (*.mp4 *.avi *.mkv *.mov *.webm);;Все файлы (*.*)",
-        )
-        if path:
-            self._spec_input.setText(path)
+            self._spec_input.setPlaceholderText("rtsp://user:pass@host:port/stream")
 
     @Slot()
     def _toggle_source(self) -> None:
@@ -140,10 +116,8 @@ class LiveTab(QWidget):
             except ValueError:
                 self._status_label.setText("Индекс камеры должен быть числом")
                 return
-        elif idx == SOURCE_RTSP:
-            source = rtsp_stream(spec)
         else:
-            source = video_file(spec)
+            source = rtsp_stream(spec)
 
         detectors: list[Detector] = []
         if self._person_check.isChecked():
@@ -212,7 +186,6 @@ class LiveTab(QWidget):
     def _set_controls_enabled(self, enabled: bool) -> None:
         self._type_combo.setEnabled(enabled)
         self._spec_input.setEnabled(enabled)
-        self._browse_btn.setEnabled(enabled)
         self._person_check.setEnabled(enabled)
         self._face_check.setEnabled(enabled)
         self._tracking_check.setEnabled(enabled)

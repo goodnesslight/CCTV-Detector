@@ -21,7 +21,7 @@ class MainWindow(QMainWindow):
         self._services = Services()
 
         self._tabs = QTabWidget()
-        self._tabs.addTab(LiveTab(self._services), "Live")
+        self._tabs.addTab(LiveTab(self._services), "Прямая трансляция")
         self._tabs.addTab(VideoAnalysisTab(self._services), "Анализ видео")
         self._tabs.addTab(EventsTab(self._services), "События")
         self._tabs.addTab(PersonsTab(self._services), "Персоны")

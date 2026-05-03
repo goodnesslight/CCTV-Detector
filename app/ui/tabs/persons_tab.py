@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -28,6 +29,15 @@ class PersonsTab(QWidget):
 
         self._list_widget = QListWidget()
         self._list_widget.setStyleSheet("font-size: 14px;")
+
+        self._empty_label = QLabel("Нет персон")
+        self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_label.setStyleSheet("color: #666; font-size: 14px;")
+
+        self._list_stack = QStackedWidget()
+        self._list_stack.addWidget(self._empty_label)
+        self._list_stack.addWidget(self._list_widget)
+        self._list_stack.setCurrentIndex(0)
 
         self._load_btn = QPushButton("Загрузить базу лиц")
         self._load_btn.clicked.connect(self._on_load)
@@ -61,7 +71,7 @@ class PersonsTab(QWidget):
         layout = QVBoxLayout(self)
         layout.addLayout(buttons)
         layout.addWidget(self._status_label)
-        layout.addWidget(self._list_widget, 1)
+        layout.addWidget(self._list_stack, 1)
 
     @Slot()
     def _on_load(self) -> None:
@@ -149,6 +159,7 @@ class PersonsTab(QWidget):
             item = QListWidgetItem(f"{name}  —  {count} фото")
             item.setData(NAME_ROLE, name)
             self._list_widget.addItem(item)
+        self._list_stack.setCurrentIndex(1 if persons else 0)
         total = sum(c for _, c in persons)
         self._status_label.setText(
             f"Персон: {len(persons)}  |  фото: {total}"
