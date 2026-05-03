@@ -57,9 +57,9 @@ class VideoAnalysisTab(QWidget):
         self._open_btn = QPushButton("Открыть...")
         self._open_btn.clicked.connect(self._on_open_file)
 
-        self._person_check = QCheckBox("Люди")
+        self._person_check = QCheckBox("Люди (YOLO)")
         self._person_check.setChecked(True)
-        self._face_check = QCheckBox("Лица")
+        self._face_check = QCheckBox("Лица (YuNet + SFace)")
         self._face_check.setChecked(True)
         self._tracking_check = QCheckBox("Трекинг + loitering")
         self._tracking_check.setChecked(False)

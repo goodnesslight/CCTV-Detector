@@ -3,7 +3,6 @@ from datetime import datetime
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QCheckBox,
     QComboBox,
     QHBoxLayout,
     QHeaderView,
@@ -31,9 +30,6 @@ class EventsTab(QWidget):
         self._kind_combo = QComboBox()
         self._kind_combo.addItem("Все типы", "")
         self._kind_combo.currentIndexChanged.connect(self._refresh)
-
-        self._only_with_clip = QCheckBox("Только с клипом")
-        self._only_with_clip.toggled.connect(self._refresh)
 
         self._refresh_btn = QPushButton("Обновить")
         self._refresh_btn.clicked.connect(self._refresh)
@@ -67,7 +63,6 @@ class EventsTab(QWidget):
         toolbar = QHBoxLayout()
         toolbar.addWidget(QLabel("Тип:"))
         toolbar.addWidget(self._kind_combo)
-        toolbar.addWidget(self._only_with_clip)
         toolbar.addWidget(self._refresh_btn)
         toolbar.addStretch(1)
         toolbar.addWidget(self._clear_btn)
@@ -95,10 +90,7 @@ class EventsTab(QWidget):
     @Slot()
     def _refresh(self) -> None:
         kind = self._kind_combo.currentData() or None
-        only_with_clip = self._only_with_clip.isChecked()
-        self._events = self._services.events_repo.query(
-            kind=kind, only_with_clip=only_with_clip, limit=500,
-        )
+        self._events = self._services.events_repo.query(kind=kind, limit=500)
 
         self._table.setRowCount(0)
         for ev in self._events:
