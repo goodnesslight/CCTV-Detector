@@ -1,9 +1,5 @@
-from pathlib import Path
-
-import cv2
 from PySide6.QtCore import Slot
 from PySide6.QtWidgets import (
-    QFileDialog,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -24,11 +20,8 @@ class ZonesTab(QWidget):
         super().__init__()
         self._services = services
 
-        self._snapshot_btn = QPushButton("Знімок з Live")
+        self._snapshot_btn = QPushButton("Знімок з прямої трансляції")
         self._snapshot_btn.clicked.connect(self._on_snapshot_live)
-
-        self._open_image_btn = QPushButton("Відкрити файл...")
-        self._open_image_btn.clicked.connect(self._on_open_image)
 
         self._new_zone_btn = QPushButton("+ Нова зона")
         self._new_zone_btn.clicked.connect(self._on_new_zone)
@@ -56,7 +49,6 @@ class ZonesTab(QWidget):
 
         toolbar = QHBoxLayout()
         toolbar.addWidget(self._snapshot_btn)
-        toolbar.addWidget(self._open_image_btn)
         sep = QLabel(" │ ")
         sep.setStyleSheet("color: #444;")
         toolbar.addWidget(sep)
@@ -105,25 +97,12 @@ class ZonesTab(QWidget):
         )
 
     @Slot()
-    def _on_open_image(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Відкрити зображення", "",
-            "Зображення (*.jpg *.jpeg *.png *.bmp);;Усі файли (*.*)",
-        )
-        if not path:
-            return
-        img = cv2.imread(path)
-        if img is None:
-            QMessageBox.warning(self, "Помилка", "Не вдалося прочитати зображення.")
-            return
-        self._canvas.set_background(img)
-        self._status_label.setText(f"Завантажено: {Path(path).name}")
-
-    @Slot()
     def _on_new_zone(self) -> None:
         if not self._canvas.has_background:
             QMessageBox.information(
-                self, "Немає знімка", "Спочатку завантаж знімок (кнопки зліва).",
+                self, "Немає знімка",
+                "Спочатку запусти джерело на вкладці 'Пряма трансляція' "
+                "та натисни 'Знімок з прямої трансляції'.",
             )
             return
         self._canvas.start_drawing()
