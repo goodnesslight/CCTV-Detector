@@ -58,7 +58,7 @@ data/models/
 *.pt
 *.onnx
 
-# Артефакты Ultralytics при тренировке (scripts/train_weapon_model.py)
+# Артефакты Ultralytics при дообучении моделей
 runs/
 
 # Скачанные датасеты (Roboflow обычно создаёт папку рядом)

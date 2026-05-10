@@ -1,6 +1,8 @@
+import time
+from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import Qt, QTimer, Slot
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -19,6 +21,20 @@ from PySide6.QtWidgets import (
 from app.services import Services
 
 NAME_ROLE = Qt.ItemDataRole.UserRole
+_REFRESH_INTERVAL_MS = 3000
+
+
+def _format_last_seen(ts: float | None) -> str:
+    if ts is None:
+        return "ніколи"
+    delta = time.time() - ts
+    if delta < 60:
+        return "щойно"
+    if delta < 3600:
+        return f"{int(delta // 60)} хв тому"
+    if delta < 86400:
+        return f"{int(delta // 3600)} год тому"
+    return datetime.fromtimestamp(ts).strftime("%d.%m.%Y %H:%M")
 
 
 class PersonsTab(QWidget):
@@ -26,6 +42,10 @@ class PersonsTab(QWidget):
         super().__init__()
         self._services = services
         self._loaded = False
+
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setInterval(_REFRESH_INTERVAL_MS)
+        self._refresh_timer.timeout.connect(self._refresh_list)
 
         self._list_widget = QListWidget()
         self._list_widget.setStyleSheet("font-size: 14px;")
@@ -89,6 +109,8 @@ class PersonsTab(QWidget):
         self._add_photo_btn.setEnabled(True)
         self._remove_btn.setEnabled(True)
         self._refresh_list()
+        if self.isVisible():
+            self._refresh_timer.start()
 
     @Slot()
     def _on_add(self) -> None:
@@ -145,11 +167,15 @@ class PersonsTab(QWidget):
         name = item.data(NAME_ROLE)
         reply = QMessageBox.question(
             self, "Видалити персону",
-            f"Видалити «{name}» з whitelist? Файли фото також буде видалено.",
+            f"Видалити «{name}» з whitelist? Файли фото та статистика появ також будуть видалені.",
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
         self._services.face_recognizer().remove_person(name)
+        try:
+            self._services.sightings_repo.delete(name)
+        except Exception:
+            pass
         self._status_label.setText(f"Видалено: {name}")
         self._refresh_list()
 
@@ -157,13 +183,38 @@ class PersonsTab(QWidget):
         if not self._loaded:
             return
         persons = self._services.face_recognizer().list_persons()
+        try:
+            stats = self._services.sightings_repo.stats()
+        except Exception:
+            stats = {}
+        selected_name = None
+        current = self._list_widget.currentItem()
+        if current is not None:
+            selected_name = current.data(NAME_ROLE)
         self._list_widget.clear()
         for name, count in persons:
-            item = QListWidgetItem(f"{name}  —  {count} фото")
+            sightings, last_seen = stats.get(name, (0, None))
+            text = (
+                f"{name}  —  {count} фото  |  появи: {sightings}  "
+                f"|  останній раз: {_format_last_seen(last_seen)}"
+            )
+            item = QListWidgetItem(text)
             item.setData(NAME_ROLE, name)
             self._list_widget.addItem(item)
+            if name == selected_name:
+                self._list_widget.setCurrentItem(item)
         self._list_stack.setCurrentIndex(1 if persons else 0)
         total = sum(c for _, c in persons)
         self._status_label.setText(
             f"Персон: {len(persons)}  |  фото: {total}"
         )
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if self._loaded:
+            self._refresh_list()
+            self._refresh_timer.start()
+
+    def hideEvent(self, event) -> None:
+        super().hideEvent(event)
+        self._refresh_timer.stop()

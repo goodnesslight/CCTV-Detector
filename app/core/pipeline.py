@@ -23,7 +23,6 @@ _LABEL_COLORS_BGR: dict[str, tuple[int, int, int]] = {
     "person": (76, 175, 80),
     "known_face": (76, 175, 80),
     "unknown_face": (52, 67, 244),
-    "weapon": (0, 165, 255),
 }
 _DEFAULT_COLOR = (200, 200, 200)
 _IN_ZONE_COLOR_BGR = (0, 0, 255)

@@ -9,11 +9,11 @@ class Settings:
 
     live_person_enabled: bool = True
     live_face_enabled: bool = True
-    live_weapon_enabled: bool = True
     live_tracking_enabled: bool = False
 
     alert_cooldown_seconds: float = 10.0
     loitering_threshold_seconds: float = 5.0
+    sighting_cooldown_seconds: float = 30.0
 
     beep_enabled: bool = True
     tts_enabled: bool = False

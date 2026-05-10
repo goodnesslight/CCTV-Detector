@@ -4,18 +4,18 @@ from app.alerts.alert_manager import (
     AlertManager,
     LoiteringRule,
     UnknownFaceRule,
-    WeaponSightedRule,
     ZoneIntrusionRule,
 )
 from app.alerts.clip_manager import ClipManager
 from app.alerts.sound import SoundPlayer, TTSPlayer
 from app.config import CLIPS_DIR, DB_PATH, KNOWN_FACES_DIR, SETTINGS_PATH, ZONES_PATH
 from app.core.settings import Settings
+from app.core.sightings_tracker import SightingsTracker
 from app.core.zones import Zone
 from app.detectors.face_recognizer import FaceRecognizer
 from app.detectors.person_detector import PersonDetector
-from app.detectors.weapon_detector import WeaponDetector
 from app.storage.events_repo import EventsRepository
+from app.storage.persons_repo import PersonSightingsRepository
 from app.storage.settings_repo import SettingsRepository
 from app.storage.zones_repo import ZonesRepository
 
@@ -27,7 +27,6 @@ class Services:
 
         self._person_detector: PersonDetector | None = None
         self._face_recognizer: FaceRecognizer | None = None
-        self._weapon_detector: WeaponDetector | None = None
         self._zones_repo = ZonesRepository(ZONES_PATH)
         self._zones: list[Zone] | None = None
         self.latest_frame: np.ndarray | None = None
@@ -40,6 +39,11 @@ class Services:
             post_seconds=self.settings.clip_post_seconds,
         )
         self.events_repo = EventsRepository(DB_PATH)
+        self.sightings_repo = PersonSightingsRepository(DB_PATH)
+        self.sightings = SightingsTracker(
+            repository=self.sightings_repo,
+            cooldown_seconds=self.settings.sighting_cooldown_seconds,
+        )
         self.alerts = AlertManager(
             clip_manager=self._clip_manager,
             sound=self._sound,
@@ -51,7 +55,6 @@ class Services:
                 UnknownFaceRule(),
                 ZoneIntrusionRule(),
                 LoiteringRule(threshold_seconds=self.settings.loitering_threshold_seconds),
-                WeaponSightedRule(),
             ],
         )
 
@@ -70,11 +73,6 @@ class Services:
                 det_score_threshold=self.settings.face_det_threshold,
             )
         return self._face_recognizer
-
-    def weapon_detector(self) -> WeaponDetector:
-        if self._weapon_detector is None:
-            self._weapon_detector = WeaponDetector()
-        return self._weapon_detector
 
     def create_tracker(self):
         from app.detectors.tracker import ByteTrackPersonTracker
@@ -100,6 +98,7 @@ class Services:
         self._clip_manager.configure(s.clip_pre_seconds, s.clip_post_seconds)
         self.alerts.set_cooldown(s.alert_cooldown_seconds)
         self.alerts.set_loitering_threshold(s.loitering_threshold_seconds)
+        self.sightings.set_cooldown(s.sighting_cooldown_seconds)
 
         if self._person_detector is not None:
             self._person_detector.set_conf_threshold(s.yolo_conf_threshold)

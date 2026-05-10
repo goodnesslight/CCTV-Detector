@@ -166,17 +166,20 @@ class FaceRecognizer:
                 annotation = f"{best_name} ({best_sim:.2f})"
                 conf = best_sim
                 cls = 1
+                person_name = best_name
             else:
                 label = "unknown_face"
                 annotation = "?"
                 conf = float(row[14]) if row.shape[0] > 14 else 0.0
                 cls = 2
+                person_name = None
 
             out.append(
                 Detection(
                     x1=x1, y1=y1, x2=x2, y2=y2,
                     label=label, confidence=float(conf), class_id=int(cls),
                     annotation=annotation,
+                    person_name=person_name,
                 )
             )
         return out

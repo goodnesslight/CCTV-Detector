@@ -18,6 +18,7 @@ class Detection:
     track_id: int | None = None
     annotation: str | None = None
     zone_name: str | None = None
+    person_name: str | None = None
 
     @property
     def bbox(self) -> tuple[int, int, int, int]:

@@ -1,5 +1,6 @@
 import time
 import uuid
+from collections import deque
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
@@ -19,10 +20,29 @@ class AlertRule(Protocol):
 
 
 class UnknownFaceRule:
+    """Stateful temporal smoothing для алерту 'Незнайоме обличчя'.
+
+    Алерт спрацьовує лише якщо незнайоме обличчя було в принаймні `min_hits`
+    з останніх `window` кадрів. Захищає від хибних спрацьовувань коли
+    знайома особа на 1-3 кадрах класифікується як незнайома (поганий ракурс
+    / motion blur при поверненні в кадр)."""
+
+    def __init__(self, window: int = 10, min_hits: int = 10) -> None:
+        self._window = window
+        self._min_hits = min_hits
+        self._history: deque[bool] = deque(maxlen=window)
+
     def evaluate(self, result: ProcessingResult, ts: float) -> list[AlertEvent]:
         unknown = [d for d in result.detections if d.label == "unknown_face"]
+        self._history.append(bool(unknown))
+
+        if len(self._history) < self._window:
+            return []
+        if sum(self._history) < self._min_hits:
+            return []
         if not unknown:
             return []
+
         d = unknown[0]
         return [
             AlertEvent(
@@ -35,25 +55,8 @@ class UnknownFaceRule:
             )
         ]
 
-
-class WeaponSightedRule:
-    def evaluate(self, result: ProcessingResult, ts: float) -> list[AlertEvent]:
-        weapons = [d for d in result.detections if d.label == "weapon"]
-        if not weapons:
-            return []
-        d = weapons[0]
-        kinds = [w.annotation.split()[0] for w in weapons if w.annotation]
-        detail = ", ".join(sorted(set(kinds))) if kinds else "виявлено"
-        return [
-            AlertEvent(
-                id=uuid.uuid4().hex[:12],
-                timestamp=ts,
-                kind="weapon",
-                title="Холодна зброя",
-                detail=detail,
-                detection_bbox=d.bbox,
-            )
-        ]
+    def reset(self) -> None:
+        self._history.clear()
 
 
 class ZoneIntrusionRule:
@@ -161,7 +164,6 @@ class AlertManager(QObject):
             UnknownFaceRule(),
             ZoneIntrusionRule(),
             LoiteringRule(threshold_seconds=5.0),
-            WeaponSightedRule(),
         ]
         self._last_fired: dict[str, float] = {}
 
