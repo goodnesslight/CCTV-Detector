@@ -24,27 +24,27 @@ class ZonesTab(QWidget):
         super().__init__()
         self._services = services
 
-        self._snapshot_btn = QPushButton("Снимок из Live")
+        self._snapshot_btn = QPushButton("Знімок з Live")
         self._snapshot_btn.clicked.connect(self._on_snapshot_live)
 
-        self._open_image_btn = QPushButton("Открыть файл...")
+        self._open_image_btn = QPushButton("Відкрити файл...")
         self._open_image_btn.clicked.connect(self._on_open_image)
 
-        self._new_zone_btn = QPushButton("+ Новая зона")
+        self._new_zone_btn = QPushButton("+ Нова зона")
         self._new_zone_btn.clicked.connect(self._on_new_zone)
 
-        self._finish_btn = QPushButton("Закрыть зону")
+        self._finish_btn = QPushButton("Закрити зону")
         self._finish_btn.clicked.connect(self._on_finish)
         self._finish_btn.setEnabled(False)
 
-        self._cancel_btn = QPushButton("Отмена")
+        self._cancel_btn = QPushButton("Скасувати")
         self._cancel_btn.clicked.connect(self._on_cancel)
         self._cancel_btn.setEnabled(False)
 
-        self._delete_btn = QPushButton("Удалить выбранную")
+        self._delete_btn = QPushButton("Видалити вибрану")
         self._delete_btn.clicked.connect(self._on_delete)
 
-        self._save_btn = QPushButton("Сохранить")
+        self._save_btn = QPushButton("Зберегти")
         self._save_btn.clicked.connect(self._on_save)
 
         self._list_widget = QListWidget()
@@ -86,10 +86,10 @@ class ZonesTab(QWidget):
         self._canvas.set_zones(zones)
         self._list_widget.clear()
         for z in zones:
-            self._list_widget.addItem(f"{z.name}  ({len(z.points)} точек)")
+            self._list_widget.addItem(f"{z.name}  ({len(z.points)} точок)")
         suffix = ""
         if zones:
-            suffix = "  Чтобы изменения применились в Live, переподключитесь к источнику."
+            suffix = "  Щоб зміни застосувались у Live, перепідключіться до джерела."
         self._status_label.setText(f"Зон: {len(zones)}.{suffix}")
 
     @Slot()
@@ -98,35 +98,36 @@ class ZonesTab(QWidget):
         if frame is None:
             QMessageBox.information(
                 self,
-                "Нет кадра",
-                "Сначала запусти источник на вкладке Live, дождись пары кадров и вернись сюда.",
+                "Немає кадру",
+                "Спочатку запусти джерело на вкладці 'Пряма трансляція', дочекайся "
+                "пари кадрів і повернись сюди.",
             )
             return
         self._canvas.set_background(frame)
         self._status_label.setText(
-            "Снимок получен. Нажми '+ Новая зона' и кликай по точкам полигона."
+            "Знімок отримано. Натисни '+ Нова зона' і клікай по точках полігону."
         )
 
     @Slot()
     def _on_open_image(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
-            self, "Открыть изображение", "",
-            "Изображения (*.jpg *.jpeg *.png *.bmp);;Все файлы (*.*)",
+            self, "Відкрити зображення", "",
+            "Зображення (*.jpg *.jpeg *.png *.bmp);;Усі файли (*.*)",
         )
         if not path:
             return
         img = cv2.imread(path)
         if img is None:
-            QMessageBox.warning(self, "Ошибка", "Не удалось прочитать изображение.")
+            QMessageBox.warning(self, "Помилка", "Не вдалося прочитати зображення.")
             return
         self._canvas.set_background(img)
-        self._status_label.setText(f"Загружено: {Path(path).name}")
+        self._status_label.setText(f"Завантажено: {Path(path).name}")
 
     @Slot()
     def _on_new_zone(self) -> None:
         if not self._canvas.has_background:
             QMessageBox.information(
-                self, "Нет снимка", "Сначала загрузи снимок (кнопки слева).",
+                self, "Немає знімка", "Спочатку завантаж знімок (кнопки зліва).",
             )
             return
         self._canvas.start_drawing()
@@ -134,33 +135,33 @@ class ZonesTab(QWidget):
         self._cancel_btn.setEnabled(True)
         self._new_zone_btn.setEnabled(False)
         self._status_label.setText(
-            "Кликай по точкам контура. ПКМ или 'Закрыть зону' — завершить (нужно ≥3 точки)."
+            "Клікай по точках контуру. ПКМ або 'Закрити зону' — завершити (потрібно ≥3 точки)."
         )
 
     @Slot()
     def _on_finish(self) -> None:
         if not self._canvas.finish_drawing():
             QMessageBox.information(
-                self, "Мало точек", "Зона должна содержать минимум 3 точки.",
+                self, "Мало точок", "Зона має містити мінімум 3 точки.",
             )
 
     @Slot()
     def _on_cancel(self) -> None:
         self._canvas.cancel_drawing()
         self._reset_drawing_buttons()
-        self._status_label.setText("Рисование отменено.")
+        self._status_label.setText("Малювання скасовано.")
 
     @Slot(list)
     def _on_zone_completed(self, points: list[tuple[int, int]]) -> None:
         self._reset_drawing_buttons()
-        name, ok = QInputDialog.getText(self, "Имя зоны", "Введите имя зоны:")
+        name, ok = QInputDialog.getText(self, "Ім'я зони", "Введіть ім'я зони:")
         if not ok or not name.strip():
-            self._status_label.setText("Зона не создана (нет имени).")
+            self._status_label.setText("Зону не створено (немає імені).")
             return
         self._services.zones().append(Zone(name=name.strip(), points=points))
         self._refresh()
         self._status_label.setText(
-            f"Зона '{name.strip()}' добавлена. Не забудь 'Сохранить'."
+            f"Зону '{name.strip()}' додано. Не забудь 'Зберегти'."
         )
 
     def _reset_drawing_buttons(self) -> None:
@@ -178,16 +179,16 @@ class ZonesTab(QWidget):
             return
         z = zones[row]
         reply = QMessageBox.question(
-            self, "Удалить зону", f"Удалить зону '{z.name}'?",
+            self, "Видалити зону", f"Видалити зону '{z.name}'?",
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
         del zones[row]
         self._refresh()
-        self._status_label.setText(f"Удалено: '{z.name}'. Не забудь 'Сохранить'.")
+        self._status_label.setText(f"Видалено: '{z.name}'. Не забудь 'Зберегти'.")
 
     @Slot()
     def _on_save(self) -> None:
         self._services.save_zones()
         zones = self._services.zones()
-        self._status_label.setText(f"Сохранено зон: {len(zones)} → data/zones.json")
+        self._status_label.setText(f"Збережено зон: {len(zones)} → data/zones.json")

@@ -58,6 +58,17 @@ data/models/
 *.pt
 *.onnx
 
+# Артефакты Ultralytics при тренировке (scripts/train_weapon_model.py)
+runs/
+
+# Скачанные датасеты (Roboflow обычно создаёт папку рядом)
+*.zip
+datasets/
+
+# Секреты (Roboflow API key и пр.)
+.env
+.env.local
+
 # Записанные клипы алертов (большие, могут содержать персональные данные)
 data/clips/
 

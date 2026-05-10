@@ -30,7 +30,7 @@ class PersonsTab(QWidget):
         self._list_widget = QListWidget()
         self._list_widget.setStyleSheet("font-size: 14px;")
 
-        self._empty_label = QLabel("Нет персон")
+        self._empty_label = QLabel("Немає персон")
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_label.setStyleSheet("color: #666; font-size: 14px;")
 
@@ -39,24 +39,24 @@ class PersonsTab(QWidget):
         self._list_stack.addWidget(self._list_widget)
         self._list_stack.setCurrentIndex(0)
 
-        self._load_btn = QPushButton("Загрузить базу лиц")
+        self._load_btn = QPushButton("Завантажити базу облич")
         self._load_btn.clicked.connect(self._on_load)
 
-        self._add_btn = QPushButton("Добавить персону...")
+        self._add_btn = QPushButton("Додати персону...")
         self._add_btn.clicked.connect(self._on_add)
         self._add_btn.setEnabled(False)
 
-        self._add_photo_btn = QPushButton("Добавить фото к выбранной")
+        self._add_photo_btn = QPushButton("Додати фото до вибраної")
         self._add_photo_btn.clicked.connect(self._on_add_photo)
         self._add_photo_btn.setEnabled(False)
 
-        self._remove_btn = QPushButton("Удалить персону")
+        self._remove_btn = QPushButton("Видалити персону")
         self._remove_btn.clicked.connect(self._on_remove)
         self._remove_btn.setEnabled(False)
 
         self._status_label = QLabel(
-            "База не загружена. Нажмите 'Загрузить базу лиц' "
-            "(первый запуск качает ~38 МБ моделей YuNet + SFace в data/models/)."
+            "Базу не завантажено. Натисніть 'Завантажити базу облич' "
+            "(перший запуск завантажує ~38 МБ моделей YuNet + SFace у data/models/)."
         )
         self._status_label.setWordWrap(True)
         self._status_label.setStyleSheet("color: #888; padding: 4px;")
@@ -75,13 +75,13 @@ class PersonsTab(QWidget):
 
     @Slot()
     def _on_load(self) -> None:
-        self._status_label.setText("Загрузка моделей распознавания лиц...")
+        self._status_label.setText("Завантаження моделей розпізнавання облич...")
         self._load_btn.setEnabled(False)
         QApplication.processEvents()
         try:
             self._services.face_recognizer()
         except Exception as exc:
-            self._status_label.setText(f"Ошибка загрузки модели: {exc}")
+            self._status_label.setText(f"Помилка завантаження моделі: {exc}")
             self._load_btn.setEnabled(True)
             return
         self._loaded = True
@@ -92,22 +92,22 @@ class PersonsTab(QWidget):
 
     @Slot()
     def _on_add(self) -> None:
-        name, ok = QInputDialog.getText(self, "Новая персона", "Имя:")
+        name, ok = QInputDialog.getText(self, "Нова персона", "Ім'я:")
         if not ok or not name.strip():
             return
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Выберите фото с лицом",
+            "Виберіть фото з обличчям",
             "",
-            "Изображения (*.jpg *.jpeg *.png *.bmp *.webp);;Все файлы (*.*)",
+            "Зображення (*.jpg *.jpeg *.png *.bmp *.webp);;Усі файли (*.*)",
         )
         if not path:
             return
         try:
             count = self._services.face_recognizer().add_person(name, Path(path))
-            self._status_label.setText(f"Добавлен(о): {name} (фото: {count})")
+            self._status_label.setText(f"Додано: {name} (фото: {count})")
         except Exception as exc:
-            QMessageBox.warning(self, "Не удалось добавить", str(exc))
+            QMessageBox.warning(self, "Не вдалося додати", str(exc))
             return
         self._refresh_list()
 
@@ -115,22 +115,25 @@ class PersonsTab(QWidget):
     def _on_add_photo(self) -> None:
         item = self._list_widget.currentItem()
         if item is None:
-            QMessageBox.information(self, "Выберите персону", "Сначала выберите персону в списке.")
+            QMessageBox.information(
+                self, "Виберіть персону",
+                "Спочатку виберіть персону у списку.",
+            )
             return
         name = item.data(NAME_ROLE)
         path, _ = QFileDialog.getOpenFileName(
             self,
-            f"Доп. фото для {name}",
+            f"Дод. фото для {name}",
             "",
-            "Изображения (*.jpg *.jpeg *.png *.bmp *.webp);;Все файлы (*.*)",
+            "Зображення (*.jpg *.jpeg *.png *.bmp *.webp);;Усі файли (*.*)",
         )
         if not path:
             return
         try:
             count = self._services.face_recognizer().add_person(name, Path(path))
-            self._status_label.setText(f"Фото добавлено: {name} (всего: {count})")
+            self._status_label.setText(f"Фото додано: {name} (всього: {count})")
         except Exception as exc:
-            QMessageBox.warning(self, "Не удалось добавить", str(exc))
+            QMessageBox.warning(self, "Не вдалося додати", str(exc))
             return
         self._refresh_list()
 
@@ -141,13 +144,13 @@ class PersonsTab(QWidget):
             return
         name = item.data(NAME_ROLE)
         reply = QMessageBox.question(
-            self, "Удалить персону",
-            f"Удалить «{name}» из whitelist? Файлы фото также будут удалены.",
+            self, "Видалити персону",
+            f"Видалити «{name}» з whitelist? Файли фото також буде видалено.",
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
         self._services.face_recognizer().remove_person(name)
-        self._status_label.setText(f"Удалено: {name}")
+        self._status_label.setText(f"Видалено: {name}")
         self._refresh_list()
 
     def _refresh_list(self) -> None:

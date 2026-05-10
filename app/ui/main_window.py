@@ -9,7 +9,6 @@ from app.ui.tabs.live_tab import LiveTab
 from app.ui.tabs.persons_tab import PersonsTab
 from app.ui.tabs.settings_tab import SettingsTab
 from app.ui.tabs.statistics_tab import StatisticsTab
-from app.ui.tabs.video_analysis_tab import VideoAnalysisTab
 from app.ui.tabs.zones_tab import ZonesTab
 
 
@@ -23,13 +22,12 @@ class MainWindow(QMainWindow):
         self._services = Services()
 
         self._tabs = QTabWidget()
-        self._tabs.addTab(LiveTab(self._services), "Прямая трансляция")
-        self._tabs.addTab(VideoAnalysisTab(self._services), "Анализ видео")
-        self._tabs.addTab(PersonsTab(self._services), "Персоны")
-        self._tabs.addTab(ZonesTab(self._services), "Зоны")
-        self._tabs.addTab(EventsTab(self._services), "События")
+        self._tabs.addTab(LiveTab(self._services), "Пряма трансляція")
+        self._tabs.addTab(PersonsTab(self._services), "Персони")
+        self._tabs.addTab(ZonesTab(self._services), "Зони")
+        self._tabs.addTab(EventsTab(self._services), "Події")
         self._tabs.addTab(StatisticsTab(self._services), "Статистика")
-        self._tabs.addTab(SettingsTab(self._services), "Настройки")
+        self._tabs.addTab(SettingsTab(self._services), "Налаштування")
         self.setCentralWidget(self._tabs)
 
         self._build_menu()

@@ -18,7 +18,7 @@ class CameraView(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self._image_label = QLabel("Нет сигнала", self)
+        self._image_label = QLabel("Немає сигналу", self)
         self._image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._image_label.setStyleSheet(_IDLE_STYLE)
         self._image_label.setSizePolicy(
@@ -68,7 +68,7 @@ class CameraView(QWidget):
         self._frame_count = 0
         self._alert_timer.stop()
         self._image_label.setPixmap(QPixmap())
-        self._image_label.setText("Нет сигнала")
+        self._image_label.setText("Немає сигналу")
         self._image_label.setStyleSheet(_IDLE_STYLE)
 
     def resizeEvent(self, event: QResizeEvent) -> None:

@@ -28,17 +28,17 @@ class EventsTab(QWidget):
         self._events: list[AlertEvent] = []
 
         self._kind_combo = QComboBox()
-        self._kind_combo.addItem("Все типы", "")
+        self._kind_combo.addItem("Усі типи", "")
         self._kind_combo.currentIndexChanged.connect(self._refresh)
 
-        self._refresh_btn = QPushButton("Обновить")
+        self._refresh_btn = QPushButton("Оновити")
         self._refresh_btn.clicked.connect(self._refresh)
 
-        self._clear_btn = QPushButton("Очистить журнал")
+        self._clear_btn = QPushButton("Очистити журнал")
         self._clear_btn.clicked.connect(self._on_clear)
 
         self._table = QTableWidget(0, 5)
-        self._table.setHorizontalHeaderLabels(["Время", "Тип", "Описание", "Зона", "Клип"])
+        self._table.setHorizontalHeaderLabels(["Час", "Тип", "Опис", "Зона", "Кліп"])
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -53,7 +53,7 @@ class EventsTab(QWidget):
 
         self._player = ClipPlayer()
 
-        self._detail_label = QLabel("Выберите событие в таблице слева.")
+        self._detail_label = QLabel("Виберіть подію в таблиці зліва.")
         self._detail_label.setWordWrap(True)
         self._detail_label.setStyleSheet("color: #aaa; padding: 4px;")
 
@@ -110,7 +110,7 @@ class EventsTab(QWidget):
 
         total = self._services.events_repo.count()
         shown = len(self._events)
-        self._status_label.setText(f"Всего в БД: {total}  |  Показано: {shown}")
+        self._status_label.setText(f"Усього в БД: {total}  |  Показано: {shown}")
 
     def _refresh_kinds(self) -> None:
         current = self._kind_combo.currentData()
@@ -118,7 +118,7 @@ class EventsTab(QWidget):
 
         self._kind_combo.blockSignals(True)
         self._kind_combo.clear()
-        self._kind_combo.addItem("Все типы", "")
+        self._kind_combo.addItem("Усі типи", "")
         for k in kinds:
             self._kind_combo.addItem(k, k)
         if current:
@@ -132,7 +132,7 @@ class EventsTab(QWidget):
         rows = self._table.selectionModel().selectedRows()
         if not rows:
             self._player.load(None)
-            self._detail_label.setText("Выберите событие.")
+            self._detail_label.setText("Виберіть подію.")
             return
         row = rows[0].row()
         if not (0 <= row < len(self._events)):
@@ -148,8 +148,8 @@ class EventsTab(QWidget):
     @Slot()
     def _on_clear(self) -> None:
         reply = QMessageBox.question(
-            self, "Очистить журнал",
-            "Удалить все записи из БД? Файлы клипов в data/clips/ останутся.",
+            self, "Очистити журнал",
+            "Видалити всі записи з БД? Файли кліпів у data/clips/ залишаться.",
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
@@ -160,17 +160,17 @@ class EventsTab(QWidget):
         parts = [
             f"<b>{ev.title}</b>",
             f"Тип: <code>{ev.kind}</code>",
-            f"Описание: {ev.detail or '—'}",
-            f"Время: {datetime.fromtimestamp(ev.timestamp).strftime('%Y-%m-%d %H:%M:%S')}",
+            f"Опис: {ev.detail or '—'}",
+            f"Час: {datetime.fromtimestamp(ev.timestamp).strftime('%Y-%m-%d %H:%M:%S')}",
         ]
         if ev.zone_name:
             parts.append(f"Зона: <b>{ev.zone_name}</b>")
         if ev.detection_bbox:
             parts.append(f"BBox: {ev.detection_bbox}")
         if ev.clip_path:
-            parts.append(f"Клип: <code>{ev.clip_path}</code>")
+            parts.append(f"Кліп: <code>{ev.clip_path}</code>")
         else:
-            parts.append("Клип: отсутствует")
+            parts.append("Кліп: відсутній")
         return "<br>".join(parts)
 
     def cleanup(self) -> None:

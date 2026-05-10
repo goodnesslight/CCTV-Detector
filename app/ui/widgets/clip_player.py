@@ -44,7 +44,7 @@ class ClipPlayer(QWidget):
         )
         self._player.setVideoOutput(self._video)
 
-        self._empty_placeholder = QLabel("Нет видео", self)
+        self._empty_placeholder = QLabel("Немає відео", self)
         self._empty_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_placeholder.setStyleSheet(
             "background-color: #111; color: #666; font-size: 16px; "
@@ -59,11 +59,11 @@ class ClipPlayer(QWidget):
         self._video_stack.addWidget(self._video)              # index 1 — video
         self._video_stack.setCurrentIndex(0)
 
-        self._info_label = QLabel("Файл не выбран")
+        self._info_label = QLabel("Файл не вибрано")
         self._info_label.setStyleSheet("color: #888; padding: 4px;")
         self._info_label.setWordWrap(True)
 
-        self._play_btn = QPushButton("▶ Играть")
+        self._play_btn = QPushButton("▶ Грати")
         self._play_btn.clicked.connect(self._toggle_play)
         self._play_btn.setEnabled(False)
 
@@ -100,28 +100,28 @@ class ClipPlayer(QWidget):
         if path is None:
             self._player.stop()
             self._player.setSource(QUrl())
-            self._info_label.setText("Файл не выбран")
+            self._info_label.setText("Файл не вибрано")
             self._play_btn.setEnabled(False)
-            self._play_btn.setText("▶ Играть")
+            self._play_btn.setText("▶ Грати")
             self._slider.setRange(0, 0)
             self._time_label.setText("0:00.00 / 0:00.00")
             self._video_stack.setCurrentIndex(0)
             return
         if not path.exists():
             self._player.stop()
-            self._info_label.setText(f"Файл не найден: {path}")
+            self._info_label.setText(f"Файл не знайдено: {path}")
             self._play_btn.setEnabled(False)
-            self._empty_placeholder.setText(f"Файл не найден:\n{path.name}")
+            self._empty_placeholder.setText(f"Файл не знайдено:\n{path.name}")
             self._video_stack.setCurrentIndex(0)
             return
-        self._empty_placeholder.setText("Нет видео")
+        self._empty_placeholder.setText("Немає відео")
         self._info_label.setText(f"Файл: {path.name}")
         self._player.setSource(QUrl.fromLocalFile(str(path.resolve())))
         if autoplay:
             self._player.play()
             self._play_btn.setText("⏸ Пауза")
         else:
-            self._play_btn.setText("▶ Играть")
+            self._play_btn.setText("▶ Грати")
         self._play_btn.setEnabled(True)
         self._video_stack.setCurrentIndex(1)
 
@@ -139,7 +139,7 @@ class ClipPlayer(QWidget):
     def _toggle_play(self) -> None:
         if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self._player.pause()
-            self._play_btn.setText("▶ Играть")
+            self._play_btn.setText("▶ Грати")
         else:
             self._player.play()
             self._play_btn.setText("⏸ Пауза")
@@ -178,10 +178,10 @@ class ClipPlayer(QWidget):
                 self._player.setPosition(0)
                 self._player.play()
             else:
-                self._play_btn.setText("▶ Играть")
+                self._play_btn.setText("▶ Грати")
 
     @Slot(QMediaPlayer.Error, str)
     def _on_error(self, error: QMediaPlayer.Error, error_string: str) -> None:
         if error == QMediaPlayer.Error.NoError:
             return
-        self._info_label.setText(f"Ошибка плеера: {error_string}")
+        self._info_label.setText(f"Помилка плеєра: {error_string}")

@@ -19,10 +19,10 @@ from PySide6.QtWidgets import (
 from app.services import Services
 
 PERIOD_HOURS = {
-    "Последние 24 часа": 24,
-    "7 дней": 24 * 7,
-    "30 дней": 24 * 30,
-    "Всё время": None,
+    "Останні 24 години": 24,
+    "7 днів": 24 * 7,
+    "30 днів": 24 * 30,
+    "Увесь час": None,
 }
 
 
@@ -60,23 +60,23 @@ class StatisticsTab(QWidget):
         self._period_combo.setCurrentIndex(0)
         self._period_combo.currentIndexChanged.connect(self._refresh)
 
-        self._refresh_btn = QPushButton("Обновить")
+        self._refresh_btn = QPushButton("Оновити")
         self._refresh_btn.clicked.connect(self._refresh)
 
-        self._export_btn = QPushButton("📄 Экспорт в PDF")
+        self._export_btn = QPushButton("📄 Експорт у PDF")
         self._export_btn.clicked.connect(self._on_export_pdf)
 
         toolbar = QHBoxLayout()
-        toolbar.addWidget(QLabel("Период:"))
+        toolbar.addWidget(QLabel("Період:"))
         toolbar.addWidget(self._period_combo)
         toolbar.addWidget(self._refresh_btn)
         toolbar.addStretch(1)
         toolbar.addWidget(self._export_btn)
 
-        self._card_total = StatCard("Всего событий за период")
-        self._card_today = StatCard("За последний час")
-        self._card_top_kind = StatCard("Самый частый тип")
-        self._card_top_zone = StatCard("Самая активная зона")
+        self._card_total = StatCard("Усього подій за період")
+        self._card_today = StatCard("За останню годину")
+        self._card_top_kind = StatCard("Найчастіший тип")
+        self._card_top_zone = StatCard("Найактивніша зона")
 
         cards = QGridLayout()
         cards.addWidget(self._card_total, 0, 0)
@@ -84,19 +84,19 @@ class StatisticsTab(QWidget):
         cards.addWidget(self._card_top_kind, 0, 2)
         cards.addWidget(self._card_top_zone, 0, 3)
 
-        self._timeline_plot = pg.PlotWidget(title="События по часам")
+        self._timeline_plot = pg.PlotWidget(title="Події за годинами")
         self._timeline_plot.showGrid(x=True, y=True, alpha=0.2)
         self._timeline_plot.getAxis("bottom").setStyle(tickFont=pg.QtGui.QFont("monospace", 8))
-        self._timeline_plot.setLabel("left", "Событий")
+        self._timeline_plot.setLabel("left", "Подій")
         self._timeline_plot.setMinimumHeight(180)
 
-        self._kind_plot = pg.PlotWidget(title="По типу события")
+        self._kind_plot = pg.PlotWidget(title="За типом події")
         self._kind_plot.showGrid(y=True, alpha=0.2)
-        self._kind_plot.setLabel("left", "Событий")
+        self._kind_plot.setLabel("left", "Подій")
 
-        self._zone_plot = pg.PlotWidget(title="По зоне")
+        self._zone_plot = pg.PlotWidget(title="За зоною")
         self._zone_plot.showGrid(y=True, alpha=0.2)
-        self._zone_plot.setLabel("left", "Событий")
+        self._zone_plot.setLabel("left", "Подій")
 
         bottom_charts = QHBoxLayout()
         bottom_charts.addWidget(self._kind_plot, 1)
@@ -152,7 +152,7 @@ class StatisticsTab(QWidget):
 
         period_label = self._period_combo.currentText()
         self._status_label.setText(
-            f"Период: {period_label}. Всего: {total}. По типам: {len(by_kind)}. По зонам: {len(by_zone)}."
+            f"Період: {period_label}. Усього: {total}. За типами: {len(by_kind)}. За зонами: {len(by_zone)}."
         )
 
     def _draw_timeline(self, from_ts: float, until_ts: float) -> None:
@@ -206,4 +206,4 @@ class StatisticsTab(QWidget):
         except Exception as exc:
             from PySide6.QtWidgets import QMessageBox
 
-            QMessageBox.warning(self, "Ошибка экспорта", str(exc))
+            QMessageBox.warning(self, "Помилка експорту", str(exc))

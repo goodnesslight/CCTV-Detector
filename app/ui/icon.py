@@ -11,8 +11,9 @@ from PySide6.QtGui import (
 
 
 def create_app_icon(size: int = 256) -> QIcon:
-    """Generate the application icon programmatically — a watchful eye with
-    emerald iris on a dark navy rounded square. Conveys 'security + AI vision'."""
+    """Програмно генерує іконку застосунку — пильне око зі смарагдовою
+    райдужкою на темно-синьому заокругленому квадраті. Передає сенс
+    'безпека + комп'ютерний зір'."""
     pix = QPixmap(size, size)
     pix.fill(Qt.GlobalColor.transparent)
     p = QPainter(pix)

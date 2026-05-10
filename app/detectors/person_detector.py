@@ -1,24 +1,11 @@
-from pathlib import Path
-from urllib.request import urlretrieve
-
 import torch
 from ultralytics import YOLO
 
-from app.config import MODELS_DIR
 from app.core.frame import Frame
 from app.core.types import Detection
+from app.detectors._yolo_utils import ensure_yolo_model
 
 PERSON_CLASS_ID = 0  # COCO
-
-
-def _ensure_model(model_name: str) -> Path:
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    target = MODELS_DIR / model_name
-    if target.exists():
-        return target
-    url = f"https://github.com/ultralytics/assets/releases/latest/download/{model_name}"
-    urlretrieve(url, target)
-    return target
 
 
 class PersonDetector:
@@ -28,7 +15,7 @@ class PersonDetector:
         device: str | None = None,
         conf_threshold: float = 0.4,
     ) -> None:
-        model_path = _ensure_model(model_name)
+        model_path = ensure_yolo_model(model_name)
         self._model = YOLO(str(model_path))
         self._device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self._model.to(self._device)

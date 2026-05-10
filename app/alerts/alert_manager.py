@@ -29,8 +29,28 @@ class UnknownFaceRule:
                 id=uuid.uuid4().hex[:12],
                 timestamp=ts,
                 kind="unknown_face",
-                title="Незнакомое лицо",
-                detail=f"в кадре: {len(unknown)}",
+                title="Незнайоме обличчя",
+                detail=f"в кадрі: {len(unknown)}",
+                detection_bbox=d.bbox,
+            )
+        ]
+
+
+class WeaponSightedRule:
+    def evaluate(self, result: ProcessingResult, ts: float) -> list[AlertEvent]:
+        weapons = [d for d in result.detections if d.label == "weapon"]
+        if not weapons:
+            return []
+        d = weapons[0]
+        kinds = [w.annotation.split()[0] for w in weapons if w.annotation]
+        detail = ", ".join(sorted(set(kinds))) if kinds else "виявлено"
+        return [
+            AlertEvent(
+                id=uuid.uuid4().hex[:12],
+                timestamp=ts,
+                kind="weapon",
+                title="Холодна зброя",
+                detail=detail,
                 detection_bbox=d.bbox,
             )
         ]
@@ -50,7 +70,7 @@ class ZoneIntrusionRule:
                     id=uuid.uuid4().hex[:12],
                     timestamp=ts,
                     kind=f"zone:{zone_name}",
-                    title="Вторжение в зону",
+                    title="Вторгнення в зону",
                     detail=zone_name,
                     detection_bbox=d.bbox,
                     zone_name=zone_name,
@@ -68,8 +88,9 @@ class _TrackInZone:
 
 
 class LoiteringRule:
-    """Stateful rule. Tracks how long each (track_id, zone) pair stays in a zone.
-    Fires once per pair when threshold exceeded. Stale entries cleaned up by TTL."""
+    """Stateful-правило. Відстежує час перебування кожної пари (track_id, zone)
+    у зоні. Спрацьовує один раз на пару при перевищенні порогу. Застарілі
+    записи автоматично чистяться через TTL."""
 
     def __init__(self, threshold_seconds: float = 5.0, ttl_seconds: float = 2.0) -> None:
         self._threshold = threshold_seconds
@@ -97,7 +118,7 @@ class LoiteringRule:
                         id=uuid.uuid4().hex[:12],
                         timestamp=ts,
                         kind=f"loitering:{d.zone_name}",
-                        title="Долгое нахождение в зоне",
+                        title="Тривале перебування в зоні",
                         detail=f"{d.zone_name} ({elapsed:.1f}с, трек #{d.track_id})",
                         detection_bbox=d.bbox,
                         zone_name=d.zone_name,
@@ -137,7 +158,10 @@ class AlertManager(QObject):
         self._settings = settings or Settings()
         self._cooldown = cooldown_seconds
         self._rules: list[AlertRule] = rules or [
-            UnknownFaceRule(), ZoneIntrusionRule(), LoiteringRule(threshold_seconds=5.0),
+            UnknownFaceRule(),
+            ZoneIntrusionRule(),
+            LoiteringRule(threshold_seconds=5.0),
+            WeaponSightedRule(),
         ]
         self._last_fired: dict[str, float] = {}
 

@@ -81,7 +81,7 @@ class FaceRecognizer:
         faces = self._detect_raw(img)
         if faces is None or len(faces) == 0:
             return None
-        # Pick the largest face (w * h)
+        # Беремо найбільше обличчя (w * h)
         largest_idx = int(np.argmax(faces[:, 2] * faces[:, 3]))
         return self._embed(img, faces[largest_idx])
 
@@ -101,9 +101,9 @@ class FaceRecognizer:
     def add_person(self, name: str, image_path: Path) -> int:
         name = name.strip()
         if not name:
-            raise ValueError("Имя не может быть пустым")
+            raise ValueError("Ім'я не може бути порожнім")
         if name.startswith(".") or any(c in name for c in r'\/:*?"<>|'):
-            raise ValueError("Имя содержит недопустимые символы")
+            raise ValueError("Ім'я містить недопустимі символи")
 
         target_dir = self._dir / name
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -120,7 +120,7 @@ class FaceRecognizer:
             target.unlink()
             if not any(target_dir.iterdir()):
                 target_dir.rmdir()
-            raise ValueError("Лицо не найдено на фото")
+            raise ValueError("Обличчя не знайдено на фото")
 
         self._whitelist.setdefault(name, []).append(emb)
         return len(self._whitelist[name])

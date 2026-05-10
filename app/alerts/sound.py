@@ -20,7 +20,7 @@ class SoundPlayer:
 
 
 class TTSPlayer:
-    """Очередь + один воркер-поток. Если pyttsx3 не доступен — silent fallback."""
+    """Черга + один воркер-потік. Якщо pyttsx3 не доступний — silent fallback."""
 
     def __init__(self, language_hint: str = "ru") -> None:
         self._queue: queue.Queue[str | None] = queue.Queue(maxsize=10)

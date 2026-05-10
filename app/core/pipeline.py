@@ -2,6 +2,7 @@ from typing import Protocol, runtime_checkable
 
 import cv2
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
 from app.core.frame import Frame
 from app.core.types import Detection, ProcessingResult
@@ -22,16 +23,70 @@ _LABEL_COLORS_BGR: dict[str, tuple[int, int, int]] = {
     "person": (76, 175, 80),
     "known_face": (76, 175, 80),
     "unknown_face": (52, 67, 244),
+    "weapon": (0, 165, 255),
 }
 _DEFAULT_COLOR = (200, 200, 200)
 _IN_ZONE_COLOR_BGR = (0, 0, 255)
 _ZONE_FILL_BGR = (255, 200, 0)
 _ZONE_OUTLINE_BGR = (255, 220, 80)
 
+# cv2.putText не вміє в кирилицю — малюємо підписи через PIL.
+_FONT_CACHE: ImageFont.FreeTypeFont | ImageFont.ImageFont | None = None
+_FONT_PATHS = [
+    "C:/Windows/Fonts/segoeui.ttf",
+    "C:/Windows/Fonts/arial.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/Library/Fonts/Arial.ttf",
+]
+_FONT_SIZE = 14
 
-def _draw_zones(image: np.ndarray, zones: list[Zone]) -> None:
-    if not zones:
-        return
+
+def _get_font():
+    global _FONT_CACHE
+    if _FONT_CACHE is not None:
+        return _FONT_CACHE
+    for path in _FONT_PATHS:
+        try:
+            _FONT_CACHE = ImageFont.truetype(path, _FONT_SIZE)
+            return _FONT_CACHE
+        except (OSError, IOError):
+            continue
+    _FONT_CACHE = ImageFont.load_default()
+    return _FONT_CACHE
+
+
+def _bgr_to_rgb(bgr: tuple[int, int, int]) -> tuple[int, int, int]:
+    return (bgr[2], bgr[1], bgr[0])
+
+
+def _draw_text_pil(
+    image_bgr: np.ndarray,
+    items: list[tuple[str, int, int, tuple[int, int, int], tuple[int, int, int]]],
+) -> np.ndarray:
+    """Один прохід PIL для всіх текстових підписів кадра.
+    items: (text, x, y, fg_bgr, bg_bgr) — bg-прямокутник під текстом."""
+    if not items:
+        return image_bgr
+    img_pil = Image.fromarray(cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(img_pil)
+    font = _get_font()
+    for text, x, y, fg_bgr, bg_bgr in items:
+        try:
+            bbox = draw.textbbox((x, y), text, font=font)
+        except Exception:
+            continue
+        pad = 2
+        rect = (bbox[0] - pad, bbox[1] - pad, bbox[2] + pad, bbox[3] + pad)
+        draw.rectangle(rect, fill=_bgr_to_rgb(bg_bgr))
+        draw.text((x, y), text, font=font, fill=_bgr_to_rgb(fg_bgr))
+    return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+
+
+def _collect_zone_overlays(
+    image: np.ndarray,
+    zones: list[Zone],
+    text_items: list,
+) -> None:
     overlay = image.copy()
     for zone in zones:
         if len(zone.points) < 3:
@@ -45,17 +100,17 @@ def _draw_zones(image: np.ndarray, zones: list[Zone]) -> None:
         pts = np.asarray(zone.points, dtype=np.int32)
         cv2.polylines(image, [pts], True, _ZONE_OUTLINE_BGR, 2)
         cx, cy = pts.mean(axis=0).astype(int)
-        cv2.putText(
-            image, zone.name, (int(cx) - 30, int(cy)),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 4,
-        )
-        cv2.putText(
-            image, zone.name, (int(cx) - 30, int(cy)),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2,
+        text_items.append(
+            (zone.name, max(int(cx) - 30, 4), max(int(cy) - 10, 4),
+             (255, 255, 255), (30, 30, 30))
         )
 
 
-def _draw_detections(image: np.ndarray, detections: list[Detection]) -> None:
+def _collect_detection_overlays(
+    image: np.ndarray,
+    detections: list[Detection],
+    text_items: list,
+) -> None:
     for d in detections:
         if d.zone_name is not None:
             color = _IN_ZONE_COLOR_BGR
@@ -67,15 +122,8 @@ def _draw_detections(image: np.ndarray, detections: list[Detection]) -> None:
             text = f"#{d.track_id} {text}"
         if d.zone_name is not None:
             text = f"{text}  →  {d.zone_name}"
-        (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-        y_top = max(d.y1 - th - 6, 0)
-        cv2.rectangle(
-            image, (d.x1, y_top), (d.x1 + tw + 6, y_top + th + 6), color, -1
-        )
-        cv2.putText(
-            image, text, (d.x1 + 3, y_top + th + 2),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1,
-        )
+        y = max(d.y1 - _FONT_SIZE - 4, 2)
+        text_items.append((text, max(d.x1, 0), y, (0, 0, 0), color))
 
 
 def draw_overlay(
@@ -84,10 +132,13 @@ def draw_overlay(
     zones: list[Zone] | None = None,
 ) -> np.ndarray:
     out = image.copy()
+    text_items: list = []
     if zones:
-        _draw_zones(out, zones)
+        _collect_zone_overlays(out, zones, text_items)
     if detections:
-        _draw_detections(out, detections)
+        _collect_detection_overlays(out, detections, text_items)
+    if text_items:
+        out = _draw_text_pil(out, text_items)
     return out
 
 

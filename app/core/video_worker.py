@@ -23,7 +23,7 @@ class VideoWorker(QThread):
 
     def run(self) -> None:
         if not self._source.open():
-            self.error.emit(f"Не удалось открыть источник: {self._source.descriptor}")
+            self.error.emit(f"Не вдалося відкрити джерело: {self._source.descriptor}")
             return
 
         self._running = True
@@ -41,7 +41,7 @@ class VideoWorker(QThread):
                     try:
                         result = self._processor.process(frame)
                     except Exception as exc:
-                        self.error.emit(f"Ошибка обработки: {exc}")
+                        self.error.emit(f"Помилка обробки: {exc}")
                         break
                 else:
                     result = ProcessingResult(frame=frame, image=frame.image)
