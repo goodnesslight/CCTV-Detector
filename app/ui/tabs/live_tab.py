@@ -36,22 +36,32 @@ class LiveTab(QWidget):
         self._spec_input = QLineEdit("0")
         self._spec_input.setPlaceholderText("Індекс камери (0, 1, ...)")
 
+        s = self._services.settings
         self._person_check = QCheckBox("Люди (YOLO)")
-        self._person_check.setChecked(True)
+        self._person_check.setChecked(s.live_person_enabled)
         self._face_check = QCheckBox("Обличчя (YuNet + SFace)")
-        self._face_check.setChecked(True)
-        self._weapon_check = QCheckBox("Холодна зброя")
-        self._weapon_check.setChecked(True)
+        self._face_check.setChecked(s.live_face_enabled)
+
+        self._weapon_check = QCheckBox("Холодна зброя (YOLO11n)")
+        self._weapon_check.setChecked(s.live_weapon_enabled)
         self._weapon_check.setToolTip(
             "Детекція ножів через YOLO11n. Точність обмежена — публічний "
             "датасет містить ножі переважно в кухонних контекстах."
         )
+
         self._tracking_check = QCheckBox("Трекінг + loitering")
-        self._tracking_check.setChecked(False)
+        self._tracking_check.setChecked(s.live_tracking_enabled)
         self._tracking_check.setToolTip(
             "ByteTrack: присвоює постійний ID кожній людині та фіксує тривале "
             "перебування в зоні (>5 сек)."
         )
+
+        # Persist стан чекбоксів між запусками. Підключаємо ПІСЛЯ setChecked,
+        # щоб не тригерити запис під час ініціалізації UI.
+        self._person_check.toggled.connect(self._persist_live_checkboxes)
+        self._face_check.toggled.connect(self._persist_live_checkboxes)
+        self._weapon_check.toggled.connect(self._persist_live_checkboxes)
+        self._tracking_check.toggled.connect(self._persist_live_checkboxes)
 
         self._toggle_btn = QPushButton("Підключитися")
         self._toggle_btn.clicked.connect(self._toggle_source)
@@ -79,8 +89,8 @@ class LiveTab(QWidget):
         controls.addWidget(self._type_combo)
         controls.addWidget(self._spec_input, 1)
         controls.addWidget(self._person_check)
-        controls.addWidget(self._face_check)
         controls.addWidget(self._weapon_check)
+        controls.addWidget(self._face_check)
         controls.addWidget(self._tracking_check)
         controls.addWidget(self._toggle_btn)
 
@@ -252,6 +262,17 @@ class LiveTab(QWidget):
     def _on_stream_ended(self) -> None:
         self._status_label.setText("Відтворення завершене")
         self._stop_source()
+
+    def _persist_live_checkboxes(self) -> None:
+        s = self._services.settings
+        s.live_person_enabled = self._person_check.isChecked()
+        s.live_face_enabled = self._face_check.isChecked()
+        s.live_weapon_enabled = self._weapon_check.isChecked()
+        s.live_tracking_enabled = self._tracking_check.isChecked()
+        try:
+            self._services.apply_settings()
+        except Exception:
+            pass
 
     def cleanup(self) -> None:
         self._stop_source()

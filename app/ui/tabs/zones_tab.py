@@ -44,9 +44,6 @@ class ZonesTab(QWidget):
         self._delete_btn = QPushButton("Видалити вибрану")
         self._delete_btn.clicked.connect(self._on_delete)
 
-        self._save_btn = QPushButton("Зберегти")
-        self._save_btn.clicked.connect(self._on_save)
-
         self._list_widget = QListWidget()
         self._list_widget.setMaximumWidth(240)
 
@@ -68,7 +65,6 @@ class ZonesTab(QWidget):
         toolbar.addWidget(self._cancel_btn)
         toolbar.addWidget(self._delete_btn)
         toolbar.addStretch(1)
-        toolbar.addWidget(self._save_btn)
 
         center = QHBoxLayout()
         center.addWidget(self._canvas, 1)
@@ -90,7 +86,7 @@ class ZonesTab(QWidget):
         suffix = ""
         if zones:
             suffix = "  Щоб зміни застосувались у Live, перепідключіться до джерела."
-        self._status_label.setText(f"Зон: {len(zones)}.{suffix}")
+        self._status_label.setText(f"Зон: {len(zones)} (зберігаються автоматично).{suffix}")
 
     @Slot()
     def _on_snapshot_live(self) -> None:
@@ -159,10 +155,9 @@ class ZonesTab(QWidget):
             self._status_label.setText("Зону не створено (немає імені).")
             return
         self._services.zones().append(Zone(name=name.strip(), points=points))
+        self._services.save_zones()
         self._refresh()
-        self._status_label.setText(
-            f"Зону '{name.strip()}' додано. Не забудь 'Зберегти'."
-        )
+        self._status_label.setText(f"Зону '{name.strip()}' додано та збережено.")
 
     def _reset_drawing_buttons(self) -> None:
         self._finish_btn.setEnabled(False)
@@ -184,11 +179,6 @@ class ZonesTab(QWidget):
         if reply != QMessageBox.StandardButton.Yes:
             return
         del zones[row]
-        self._refresh()
-        self._status_label.setText(f"Видалено: '{z.name}'. Не забудь 'Зберегти'.")
-
-    @Slot()
-    def _on_save(self) -> None:
         self._services.save_zones()
-        zones = self._services.zones()
-        self._status_label.setText(f"Збережено зон: {len(zones)} → data/zones.json")
+        self._refresh()
+        self._status_label.setText(f"Видалено: '{z.name}' (зміни збережено).")
