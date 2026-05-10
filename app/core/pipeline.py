@@ -105,6 +105,26 @@ def _collect_zone_overlays(
         )
 
 
+def _apply_privacy_blur(image: np.ndarray, detections: list[Detection]) -> None:
+    """Pixelate-блюр на bbox'ах незнайомих облич. Mutates image in place.
+    Pixelate стійкіший до reverse-обробки за gaussian blur і виглядає
+    «офіційно» (стандартний privacy-look у медіа)."""
+    h_img, w_img = image.shape[:2]
+    for d in detections:
+        if d.label != "unknown_face":
+            continue
+        x1, y1 = max(0, d.x1), max(0, d.y1)
+        x2, y2 = min(w_img, d.x2), min(h_img, d.y2)
+        if x2 <= x1 or y2 <= y1:
+            continue
+        roi = image[y1:y2, x1:x2]
+        h, w = roi.shape[:2]
+        small_w = max(1, w // 12)
+        small_h = max(1, h // 12)
+        small = cv2.resize(roi, (small_w, small_h), interpolation=cv2.INTER_LINEAR)
+        image[y1:y2, x1:x2] = cv2.resize(small, (w, h), interpolation=cv2.INTER_NEAREST)
+
+
 def _collect_detection_overlays(
     image: np.ndarray,
     detections: list[Detection],
@@ -129,11 +149,14 @@ def draw_overlay(
     image: np.ndarray,
     detections: list[Detection],
     zones: list[Zone] | None = None,
+    privacy_blur_unknown: bool = False,
 ) -> np.ndarray:
     out = image.copy()
     text_items: list = []
     if zones:
         _collect_zone_overlays(out, zones, text_items)
+    if privacy_blur_unknown and detections:
+        _apply_privacy_blur(out, detections)
     if detections:
         _collect_detection_overlays(out, detections, text_items)
     if text_items:
@@ -147,10 +170,14 @@ class DetectionPipeline:
         detectors: list[Detector],
         zones: list[Zone] | None = None,
         tracker=None,
+        privacy_blur_unknown: bool = False,
+        heatmap=None,
     ) -> None:
         self._detectors = detectors
         self._zones = list(zones) if zones else []
         self._tracker = tracker
+        self._privacy_blur_unknown = privacy_blur_unknown
+        self._heatmap = heatmap
 
     def process(self, frame: Frame) -> ProcessingResult:
         detections: list[Detection] = []
@@ -170,8 +197,22 @@ class DetectionPipeline:
                         det.zone_name = zone.name
                         break
 
-        if detections or self._zones:
-            image = draw_overlay(frame.image, detections, self._zones)
+        if self._heatmap is not None:
+            try:
+                self._heatmap.update(frame.image.shape[:2], detections)
+            except Exception:
+                pass
+
+        if detections or self._zones or self._heatmap is not None:
+            image = draw_overlay(
+                frame.image, detections, self._zones,
+                privacy_blur_unknown=self._privacy_blur_unknown,
+            )
+            if self._heatmap is not None:
+                try:
+                    image = self._heatmap.overlay(image)
+                except Exception:
+                    pass
         else:
             image = frame.image
         return ProcessingResult(frame=frame, image=image, detections=detections)

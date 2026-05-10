@@ -180,9 +180,15 @@ class FaceRecognizer:
                     label=label, confidence=float(conf), class_id=int(cls),
                     annotation=annotation,
                     person_name=person_name,
+                    face_embedding=emb,
                 )
             )
         return out
+
+    def embedding_for_image(self, image_path: Path) -> np.ndarray | None:
+        """Публічний хелпер для пошуку: витягує embedding обличчя з файла.
+        Повертає None якщо обличчя не знайдено. Бере найбільше обличчя у кадрі."""
+        return self._embedding_from_path(image_path)
 
     @property
     def threshold(self) -> float:

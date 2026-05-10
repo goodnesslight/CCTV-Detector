@@ -298,7 +298,109 @@ def _init_schema(self) -> None:
 `CREATE TABLE IF NOT EXISTS` — ідемпотентний. Перший запуск створить таблиці,
 наступні — no-op.
 
-## 10.14. Pillow + memoryview для overlay
+### Migration via PRAGMA + ALTER
+
+Коли в `events` додавалися нові колонки (`face_embedding`, `snapshot_path`),
+старі БД треба було оновити без втрати даних. SQLite не має `ALTER TABLE
+ADD COLUMN IF NOT EXISTS`, тому перевіряємо вручну:
+
+```python
+cols = {r[1] for r in conn.execute("PRAGMA table_info(events)").fetchall()}
+if "face_embedding" not in cols:
+    conn.execute("ALTER TABLE events ADD COLUMN face_embedding BLOB")
+if "snapshot_path" not in cols:
+    conn.execute("ALTER TABLE events ADD COLUMN snapshot_path TEXT")
+```
+
+Це робить новий код сумісним з існуючими БД користувачів.
+
+## 10.14. Privacy blur — pixelate замість Gaussian
+
+У `_apply_privacy_blur` вибрано **pixelate** (down→up sample), а не Gaussian
+blur, з двох причин:
+
+1. **Стійкість до reverse.** Gaussian blur при відомому ядрі іноді можна
+   частково відновити через deconvolution. Pixelate знищує інформацію
+   назавжди — кожен 12×12 квадрат стає однорідним.
+2. **Візуально «офіційний» вигляд.** Pixelate — це стандартний privacy-look
+   у репортажах і медіа, людина одразу розуміє: «обличчя анонімізоване».
+
+```python
+small = cv2.resize(roi, (W//12, H//12), INTER_LINEAR)   # downsample
+roi[:] = cv2.resize(small, (W, H), INTER_NEAREST)       # upsample (без згладжування)
+```
+
+`INTER_NEAREST` на upsample важливий — він дає різкі квадрати, а не
+розмиту шахматку.
+
+## 10.15. Activity heatmap — голова, а не ноги
+
+Спершу heatmap використовував `bottom_center` (точку ніг людини). Це
+працює для CCTV-зверху, але для **веб-камери з фронтальним ракурсом**
+ноги поза кадром, тому YOLO повертає bbox обрізаний по нижньому краю →
+точка ніг збігається з низом кадру і вся карта малюється внизу екрана.
+
+Фікс: splat у голову. Алгоритм:
+
+```
+для кожної face-детекції (known/unknown):
+   splat у центрі face bbox  ← найточніше
+
+для кожної person-детекції:
+   якщо вже є face всередині цього person bbox — skip
+   інакше splat у top 15% bbox  ← оцінка голови
+```
+
+Це працює стабільно для всіх ракурсів:
+- Webcam frontal: face splat (точно).
+- CCTV від стелі: face детектується з висоти — splat на голові; якщо ні —
+  top 15% person bbox теж є голова.
+- Гібрид: face splats додатково посилюють (де є face, де нема — fallback).
+
+## 10.16. Face search — векторизований cosine
+
+`EventsRepository.find_by_embedding()` робить пошук за всіма embedding'ами
+у БД одним numpy matrix-vector multiply:
+
+```python
+embs = np.stack([np.frombuffer(r["face_embedding"], dtype=np.float32) for r in rows])
+sims = embs @ query                  # (N, 128) @ (128,) → (N,)
+matches = [(ev, s) for ev, s in zip(events, sims) if s >= threshold]
+```
+
+Швидкість на 10K подій:
+- np.stack: ~5 ms.
+- matrix-vector: ~1.5 ms (CPU, single thread).
+- Filter + sort: ~5 ms.
+
+Загалом < 50 ms — користувач не помічає затримки.
+
+Embedding'и нормалізовані (L2 = 1), тому cosine = dot product. Без
+нормалізації довелося б ділити на `||emb|| × ||query||` для кожної пари.
+
+## 10.17. ClipPlayer — обхід проблеми «перший кліп не показується»
+
+QtMultimedia + QStackedWidget на Windows має тонкощу: якщо `QVideoWidget`
+ніколи не показувався (захований в QStackedWidget на index 0), то перший
+виклик `setSource()` не має валідного render-сурфейсу — медіа завантажується
+у внутрішньому стані плеєра, але **візуально нічого не з'являється** до
+наступного `setSource`.
+
+Фікс: показати video widget ПЕРЕД `setSource`, не ПІСЛЯ:
+
+```python
+# Спочатку перемикаємо stack — створюється native window для QVideoWidget.
+self._video_stack.setCurrentIndex(1)
+# Тепер медіа має куди рендерити.
+self._player.setSource(QUrl.fromLocalFile(...))
+self._player.play()
+```
+
+До фіксу: перший вибір події в журналі — кліп не показувався (тільки звук
+або порожній екран); наступні вибори — все ок. Після фіксу — працює з
+першого разу.
+
+## 10.18. Pillow + memoryview для overlay
 
 При роботі з кадрами 1080p (~6 MB) кожна операція `np.array` створює нову
 копію. Цикл «BGR → PIL → draw → PIL → BGR» робить 3 копії. На 30 FPS це

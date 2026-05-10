@@ -330,7 +330,138 @@ fire(ev)
 - `kind = "zone:Каса"`
 - `kind = "loitering:Каса"`
 
-## 6.10. Зв'язок алгоритмів — приклад «знайома людина зайшла в зону»
+## 6.10. Privacy blur (pixelate)
+
+`_apply_privacy_blur(image, detections)` мутує кадр: для кожного `unknown_face`
+bbox робиться **down-sample → up-sample**:
+
+```
+roi = image[y1:y2, x1:x2]
+small = cv2.resize(roi, (W/12, H/12), INTER_LINEAR)   # downsample
+image[y1:y2, x1:x2] = cv2.resize(small, (W, H), INTER_NEAREST)  # upsample
+```
+
+Це **pixelate** — кожен квадрат 12×12 пікселів стає однорідним. Pixelate
+стійкіший до reverse-обробки, ніж Gaussian blur (для нього іноді можна
+відновити частину деталей через deconvolution). Для GDPR-сумісного
+анонімування — стандартний підхід.
+
+Виклик ставиться в `draw_overlay()` між zone overlay і detection rectangles —
+до малювання рамок, щоб блюр не потрапив на саму рамку.
+
+## 6.11. Теплова карта активності (heatmap)
+
+Накопичувальний 2D-grid, що показує куди ходять люди.
+
+### Структура
+
+```python
+class ActivityHeatmap:
+    grid: np.ndarray  # shape (H/scale, W/scale), float32
+    decay: float = 0.998   # multiplicative decay per frame
+    splat_radius: int = 8
+```
+
+### Алгоритм на кадр
+
+```
+grid *= decay                                      # часовий розпад
+
+для face-детекцій (known/unknown):
+   splat_points.append(face_bbox_center)
+
+для person-детекцій:
+   if person вже покритий face-точкою:
+       skip
+   else:
+       splat_points.append(top 15% bbox)           # оцінка голови
+
+для (px, py) у splat_points:
+   y_g = py / scale, x_g = px / scale
+   grid[навколо (y_g, x_g)] += gaussian_splat()
+```
+
+### Чому центр голови, а не ноги
+
+Точка ніг (`bbox.y2`) для веб-камери з фронтальним ракурсом потрапляє на
+край кадру (ноги поза кадром), що деформує карту. Голова — стабільна
+точка для будь-якого ракурсу.
+
+### Overlay рендер
+
+```
+norm = grid / grid.max() * 255           # 0..255
+up = cv2.resize(norm, image_shape)        # збільшити до розміру кадру
+colored = cv2.applyColorMap(up, COLORMAP_JET)  # синій→зелений→жовтий→червоний
+mask = up / 255 * 0.55                    # alpha залежить від інтенсивності
+return image * (1-mask) + colored * mask
+```
+
+### Persistance
+
+`grid` зберігається в `data/activity_heatmap.npy` кожні 300 кадрів та при
+shutdown. Завантажується при старті. Так карта накопичується тривало,
+між сесіями.
+
+## 6.12. Snapshot capture для unknown_face алертів
+
+При спрацюванні `unknown_face`-правила, `AlertManager._dispatch` додатково
+викликає `_save_unknown_snapshot()`:
+
+```
+1. Прочитати ev.detection_bbox (x1,y1,x2,y2).
+2. Розширити на 20% (для контексту — волосся, плечі).
+3. Кропнути ділянку з ОРИГІНАЛЬНОГО кадру (без overlay).
+4. Зберегти JPG: data/unknown_faces/<YYYYMMDD-HHMMSS>_<id8>.jpg
+5. ev.snapshot_path = path → зберігається в БД при наступному repo.save(ev).
+```
+
+Знімок беремо з `result.frame.image`, а не з `result.image`, щоб не зберігати
+кадр з намальованими bbox/підписами/блюром поверх обличчя.
+
+## 6.13. Пошук по обличчю в журналі
+
+Один з найскладніших алгоритмів — повнотекстовий пошук, але для embedding'ів.
+
+### Етап 1 — Витягування query embedding
+
+```
+користувач завантажує фото
+        │
+        ▼
+FaceRecognizer.embedding_for_image(path):
+   img = cv2.imread(path)
+   faces = YuNet.detect(img)
+   beggest = argmax(faces[:, 2] * faces[:, 3])   # за площею
+   aligned = SFace.alignCrop(img, faces[biggest])
+   emb = SFace.feature(aligned)
+   return emb / ||emb||                          # L2 normalize → 128-D unit
+```
+
+### Етап 2 — Векторизований cosine search
+
+```
+SELECT * FROM events WHERE face_embedding IS NOT NULL
+        │ N рядків
+        ▼
+embs = np.stack([np.frombuffer(r.face_embedding, np.float32) for r in rows])
+        │ shape (N, 128)
+        ▼
+sims = embs @ query              # batched dot product
+        │ shape (N,)
+        ▼
+matches = [(event, float(sim)) for event, sim in zip(events, sims) if sim ≥ τ]
+matches.sort(key=lambda x: x[1], reverse=True)
+return matches[:200]
+```
+
+Складність: O(N × 128) операцій, де N — кількість збережених embedding'ів.
+На 10K подій — ~1.3M flops, < 50 ms на сучасному CPU. NumPy робить це
+в один matmul.
+
+Поріг τ = 0.4 узгоджений з порогом класифікації `known_face`.
+
+## 6.14. Зв'язок алгоритмів — приклад «знайома людина зайшла в зону»
 
 ```
 кадр t — людина зайшла в кадр з зоною «Каса»

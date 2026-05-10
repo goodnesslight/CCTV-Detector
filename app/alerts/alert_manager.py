@@ -2,7 +2,10 @@ import time
 import uuid
 from collections import deque
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol, runtime_checkable
+
+import cv2
 
 from PySide6.QtCore import QObject, Signal
 
@@ -52,6 +55,7 @@ class UnknownFaceRule:
                 title="Незнайоме обличчя",
                 detail=f"в кадрі: {len(unknown)}",
                 detection_bbox=d.bbox,
+                face_embedding=d.face_embedding,
             )
         ]
 
@@ -152,6 +156,7 @@ class AlertManager(QObject):
         settings: Settings | None = None,
         cooldown_seconds: float = 10.0,
         rules: list[AlertRule] | None = None,
+        unknown_faces_dir: Path | None = None,
     ) -> None:
         super().__init__()
         self._clip = clip_manager
@@ -166,6 +171,7 @@ class AlertManager(QObject):
             LoiteringRule(threshold_seconds=5.0),
         ]
         self._last_fired: dict[str, float] = {}
+        self._unknown_faces_dir = unknown_faces_dir
 
     def on_frame(self, result: ProcessingResult) -> list[AlertEvent]:
         wall = time.time()
@@ -194,6 +200,8 @@ class AlertManager(QObject):
         path = self._clip.trigger(ev.id, ev.kind, ev.timestamp, (h, w))
         if path is not None:
             ev.clip_path = path
+        if ev.kind == "unknown_face" and self._unknown_faces_dir is not None:
+            self._save_unknown_snapshot(ev, result)
         if self._settings.beep_enabled:
             self._sound.beep()
         if self._settings.tts_enabled:
@@ -203,6 +211,31 @@ class AlertManager(QObject):
         except Exception:
             pass
         self.alert_fired.emit(ev)
+
+    def _save_unknown_snapshot(self, ev: AlertEvent, result: ProcessingResult) -> None:
+        if ev.detection_bbox is None or self._unknown_faces_dir is None:
+            return
+        try:
+            x1, y1, x2, y2 = ev.detection_bbox
+            img = result.frame.image
+            h, w = img.shape[:2]
+            # Розширюємо bbox на 20% для контексту (волосся, плечі).
+            pad_x = int((x2 - x1) * 0.2)
+            pad_y = int((y2 - y1) * 0.2)
+            x1c = max(0, x1 - pad_x)
+            y1c = max(0, y1 - pad_y)
+            x2c = min(w, x2 + pad_x)
+            y2c = min(h, y2 + pad_y)
+            crop = img[y1c:y2c, x1c:x2c]
+            if crop.size == 0:
+                return
+            self._unknown_faces_dir.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            path = self._unknown_faces_dir / f"{stamp}_{ev.id[:8]}.jpg"
+            if cv2.imwrite(str(path), crop):
+                ev.snapshot_path = path
+        except Exception:
+            pass
 
     def set_cooldown(self, seconds: float) -> None:
         self._cooldown = float(seconds)

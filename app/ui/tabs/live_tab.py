@@ -154,8 +154,16 @@ class LiveTab(QWidget):
             except Exception as exc:
                 self._status_label.setText(f"Помилка трекера: {exc}")
                 return
-        if detectors or zones:
-            processor = DetectionPipeline(detectors, zones=zones, tracker=tracker)
+        s = self._services.settings
+        heatmap = self._services.heatmap if s.activity_heatmap_enabled else None
+        if detectors or zones or heatmap is not None:
+            processor = DetectionPipeline(
+                detectors,
+                zones=zones,
+                tracker=tracker,
+                privacy_blur_unknown=s.privacy_blur_unknown,
+                heatmap=heatmap,
+            )
         else:
             processor = None
 

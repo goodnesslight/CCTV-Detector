@@ -21,3 +21,6 @@ class Settings:
 
     clip_pre_seconds: float = 2.0
     clip_post_seconds: float = 5.0
+
+    privacy_blur_unknown: bool = False
+    activity_heatmap_enabled: bool = False

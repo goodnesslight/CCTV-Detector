@@ -8,7 +8,16 @@ from app.alerts.alert_manager import (
 )
 from app.alerts.clip_manager import ClipManager
 from app.alerts.sound import SoundPlayer, TTSPlayer
-from app.config import CLIPS_DIR, DB_PATH, KNOWN_FACES_DIR, SETTINGS_PATH, ZONES_PATH
+from app.config import (
+    CLIPS_DIR,
+    DB_PATH,
+    HEATMAP_PATH,
+    KNOWN_FACES_DIR,
+    SETTINGS_PATH,
+    UNKNOWN_FACES_DIR,
+    ZONES_PATH,
+)
+from app.core.activity_heatmap import ActivityHeatmap
 from app.core.settings import Settings
 from app.core.sightings_tracker import SightingsTracker
 from app.core.zones import Zone
@@ -56,7 +65,10 @@ class Services:
                 ZoneIntrusionRule(),
                 LoiteringRule(threshold_seconds=self.settings.loitering_threshold_seconds),
             ],
+            unknown_faces_dir=UNKNOWN_FACES_DIR,
         )
+
+        self.heatmap = ActivityHeatmap(path=HEATMAP_PATH)
 
     def person_detector(self) -> PersonDetector:
         if self._person_detector is None:
@@ -108,3 +120,4 @@ class Services:
 
     def shutdown(self) -> None:
         self.alerts.shutdown()
+        self.heatmap.save()

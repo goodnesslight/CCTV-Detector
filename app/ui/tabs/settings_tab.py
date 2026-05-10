@@ -1,5 +1,3 @@
-from dataclasses import asdict
-
 from PySide6.QtCore import Slot
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -47,6 +45,21 @@ class SettingsTab(QWidget):
         self._clip_pre = self._make_spin(0.0, 30.0, 0.5, 1, suffix=" с")
         self._clip_post = self._make_spin(0.5, 60.0, 0.5, 1, suffix=" с")
 
+        self._privacy_blur = QCheckBox("Розмивати незнайомі обличчя (privacy)")
+        self._privacy_blur.setToolTip(
+            "Pixelate-блюр на bbox'ах unknown_face. Допомагає з GDPR-вимогами "
+            "при демонстрації записів. Застосовується після перепідключення джерела."
+        )
+
+        self._activity_heatmap = QCheckBox("Теплова карта активності")
+        self._activity_heatmap.setToolTip(
+            "Накопичувальна карта руху людей у кадрі. Активність із плином "
+            "часу згасає (decay). Застосовується після перепідключення джерела."
+        )
+
+        self._reset_heatmap_btn = QPushButton("Скинути теплову карту")
+        self._reset_heatmap_btn.clicked.connect(self._on_reset_heatmap)
+
         detection_box = QGroupBox("Детекція")
         det_form = QFormLayout(detection_box)
         det_form.addRow("YOLO confidence (люди):", self._yolo_conf)
@@ -65,6 +78,12 @@ class SettingsTab(QWidget):
         c_form = QFormLayout(clips_box)
         c_form.addRow("До події:", self._clip_pre)
         c_form.addRow("Після події:", self._clip_post)
+
+        privacy_box = QGroupBox("Приватність та візуалізація")
+        p_form = QFormLayout(privacy_box)
+        p_form.addRow(self._privacy_blur)
+        p_form.addRow(self._activity_heatmap)
+        p_form.addRow(self._reset_heatmap_btn)
 
         self._apply_btn = QPushButton("Застосувати")
         self._apply_btn.clicked.connect(self._on_apply)
@@ -85,6 +104,7 @@ class SettingsTab(QWidget):
         v.addWidget(detection_box)
         v.addWidget(alerts_box)
         v.addWidget(clips_box)
+        v.addWidget(privacy_box)
         v.addStretch(1)
 
         scroll = QScrollArea()
@@ -122,6 +142,8 @@ class SettingsTab(QWidget):
         self._tts_lang.setCurrentIndex(idx if idx >= 0 else 0)
         self._clip_pre.setValue(s.clip_pre_seconds)
         self._clip_post.setValue(s.clip_post_seconds)
+        self._privacy_blur.setChecked(s.privacy_blur_unknown)
+        self._activity_heatmap.setChecked(s.activity_heatmap_enabled)
 
     def _gather_into(self, s: Settings) -> None:
         s.yolo_conf_threshold = self._yolo_conf.value()
@@ -134,6 +156,19 @@ class SettingsTab(QWidget):
         s.tts_language = self._tts_lang.currentData() or "uk"
         s.clip_pre_seconds = self._clip_pre.value()
         s.clip_post_seconds = self._clip_post.value()
+        s.privacy_blur_unknown = self._privacy_blur.isChecked()
+        s.activity_heatmap_enabled = self._activity_heatmap.isChecked()
+
+    @Slot()
+    def _on_reset_heatmap(self) -> None:
+        reply = QMessageBox.question(
+            self, "Скинути теплову карту",
+            "Стерти накопичену активність? Дію скасувати неможливо.",
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self._services.heatmap.reset()
+        self._status_label.setText("Теплову карту скинуто.")
 
     @Slot()
     def _on_apply(self) -> None:

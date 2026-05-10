@@ -116,6 +116,12 @@ class ClipPlayer(QWidget):
             return
         self._empty_placeholder.setText("Немає відео")
         self._info_label.setText(f"Файл: {path.name}")
+        # Перемикаємо stack на video ДО setSource, щоб native surface
+        # QVideoWidget'а гарантовано існувала на момент завантаження медіа.
+        # Без цього перший виклик load() підвантажує файл «у порожнечу»
+        # (QStackedWidget тримав video-віджет прихованим), і кадр з'являється
+        # тільки з другої спроби.
+        self._video_stack.setCurrentIndex(1)
         self._player.setSource(QUrl.fromLocalFile(str(path.resolve())))
         if autoplay:
             self._player.play()
@@ -123,7 +129,6 @@ class ClipPlayer(QWidget):
         else:
             self._play_btn.setText("▶ Грати")
         self._play_btn.setEnabled(True)
-        self._video_stack.setCurrentIndex(1)
 
     def seek_to(self, seconds: float, autoplay: bool = True) -> None:
         ms = max(0, int(seconds * 1000))

@@ -14,10 +14,14 @@ data/
 │   │   └── photo2.jpg
 │   └── Олена/
 │       └── work.png
+├── unknown_faces/       # знімки облич з unknown_face алертів
+│   ├── 20260510-142345_a8f31bc2.jpg
+│   └── 20260510-141812_e9c1a4d8.jpg
 ├── clips/               # відео-кліпи навколо алертів
 │   ├── 20260510-142345_unknown_face_a8f3.mp4
 │   └── 20260510-141812_zone_Касса_e9c1.mp4
 ├── events.db            # SQLite БД журналу подій + лічильника появ
+├── activity_heatmap.npy # накопичена теплова карта руху людей
 ├── settings.json        # зберігання Settings
 └── zones.json           # зберігання list[Zone]
 ```
@@ -32,17 +36,19 @@ data/
 
 ```sql
 CREATE TABLE IF NOT EXISTS events (
-    id          TEXT PRIMARY KEY,
-    timestamp   REAL    NOT NULL,
-    kind        TEXT    NOT NULL,
-    title       TEXT    NOT NULL,
-    detail      TEXT,
-    zone_name   TEXT,
-    bbox_x1     INTEGER,
-    bbox_y1     INTEGER,
-    bbox_x2     INTEGER,
-    bbox_y2     INTEGER,
-    clip_path   TEXT
+    id              TEXT PRIMARY KEY,
+    timestamp       REAL    NOT NULL,
+    kind            TEXT    NOT NULL,
+    title           TEXT    NOT NULL,
+    detail          TEXT,
+    zone_name       TEXT,
+    bbox_x1         INTEGER,
+    bbox_y1         INTEGER,
+    bbox_x2         INTEGER,
+    bbox_y2         INTEGER,
+    clip_path       TEXT,
+    snapshot_path   TEXT,
+    face_embedding  BLOB
 );
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind);
@@ -58,6 +64,15 @@ CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind);
 | `zone_name` | Назва зони, якщо релевантно |
 | `bbox_*` | Координати bbox первинної детекції |
 | `clip_path` | Абсолютний шлях до MP4-кліпу або NULL |
+| `snapshot_path` | Абсолютний шлях до JPG зі знімком обличчя (тільки для `unknown_face`) або NULL |
+| `face_embedding` | 128 × float32 = 512 байт SFace-вектора (тільки для `unknown_face`) або NULL |
+
+### Migration для існуючих БД
+
+`_init_schema()` після `CREATE TABLE` перевіряє через `PRAGMA table_info`,
+чи є колонки `face_embedding` і `snapshot_path`. Якщо ні — виконує
+`ALTER TABLE events ADD COLUMN ...`. Старі БД (без цих колонок) підхопляться
+без втрат, нові події заповнять колонки.
 
 ### 8.1.2. Таблиця `person_sightings`
 
@@ -113,7 +128,9 @@ ON CONFLICT(name) DO UPDATE SET
   "tts_enabled": false,
   "tts_language": "uk",
   "clip_pre_seconds": 2.0,
-  "clip_post_seconds": 5.0
+  "clip_post_seconds": 5.0,
+  "privacy_blur_unknown": false,
+  "activity_heatmap_enabled": false
 }
 ```
 
@@ -181,6 +198,25 @@ MP4-кліпи (codec mp4v, 25 fps). Ім'я: `<YYYYMMDD-HHMMSS>_<safe_kind>_<id
 При потребі звільнити місце — можна безпечно видаляти файли. Записи в БД
 залишаться, але `clip_path` стане «orphan» — UI просто не покаже плеєр.
 
+### 8.3.4. `data/unknown_faces/`
+
+JPG-знімки обличчя для `unknown_face`-алертів. Кропаються з оригінального
+кадру (без overlay) з 20% padding для контексту.
+
+Ім'я: `<YYYYMMDD-HHMMSS>_<id8>.jpg`.
+
+Шлях зберігається в `events.snapshot_path`; видалення JPG залишає колонку
+у БД (orphan), UI у такому разі покаже placeholder.
+
+### 8.3.5. `data/activity_heatmap.npy`
+
+NumPy-масив `float32` зі сіткою накопиченої активності. Розмір залежить
+від першого кадру (W/4 × H/4). Зберігається кожні 300 кадрів та при
+shutdown через `np.save()`. При завантаженні застосунку — `np.load()`.
+
+Якщо файл відсутній — стартуємо з порожньої сітки. Якщо розмір кадру змінився
+між сесіями — сітка автоматично перебудовується (старі дані відкидаються).
+
 ## 8.4. Життєвий цикл даних
 
 ```
@@ -225,6 +261,8 @@ MP4-кліпи (codec mp4v, 25 fps). Ім'я: `<YYYYMMDD-HHMMSS>_<safe_kind>_<id
 data/models/
 data/clips/
 data/known_faces/
+data/unknown_faces/
+data/activity_heatmap.npy
 data/events.db
 data/events.db-journal
 data/events.db-shm
@@ -237,6 +275,9 @@ data/zones.json
 Видалення персони → `shutil.rmtree(data/known_faces/<name>)` + `DELETE FROM
 person_sightings WHERE name = ?`. Embeddings у пам'яті теж очищуються
 (`self._whitelist.pop(name)`).
+
+Для GDPR-сумісного режиму у Settings → ☑ «Розмивати незнайомі обличчя» —
+тоді у Live й кліпах обличчя сторонніх pixelate-розмиваються.
 
 ## 8.7. Сценарій передачі іншому користувачу
 

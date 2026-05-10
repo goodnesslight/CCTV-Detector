@@ -75,6 +75,12 @@ data/clips/
 # Загруженные пользователем фотографии whitelist'а лиц (персональные данные)
 data/known_faces/
 
+# Snapshot'ы невпізнаних обличь (персональные данные)
+data/unknown_faces/
+
+# Накопичена теплова карта активності
+data/activity_heatmap.npy
+
 # Локальная БД событий (создаётся приложением)
 data/events.db
 data/events.db-journal

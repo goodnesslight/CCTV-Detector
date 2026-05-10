@@ -18,9 +18,10 @@
 │   Services — single facade:                                     │
 │     • settings, settings_repo                                   │
 │     • person_detector(), face_recognizer() — lazy factories     │
-│     • alerts: AlertManager                                      │
+│     • alerts: AlertManager (+ unknown-face snapshot capture)    │
 │     • sightings: SightingsTracker, sightings_repo               │
-│     • events_repo                                               │
+│     • heatmap: ActivityHeatmap (persistent)                     │
+│     • events_repo (events + face_embedding BLOB + snapshot_path)│
 │     • zones(), save_zones()                                     │
 │     • create_tracker() → ByteTrack                              │
 └────────┬─────────────────┬─────────────────┬───────────────────┘
@@ -31,25 +32,36 @@
 │                │ │               │ │                          │
 │ • Frame        │ │ • Person      │ │ • AlertManager           │
 │ • Detection    │ │   Detector    │ │ • UnknownFaceRule        │
-│ • Pipeline     │ │ • Face        │ │ • ZoneIntrusionRule      │
-│ • Zone         │ │   Recognizer  │ │ • LoiteringRule          │
-│ • VideoSource  │ │ • ByteTrack   │ │ • ClipManager            │
-│ • VideoWorker  │ │   wrapper     │ │ • SoundPlayer + TTS      │
+│ • Pipeline     │ │ • Face        │ │   (temporal smoothing)   │
+│   (privacy     │ │   Recognizer  │ │ • ZoneIntrusionRule      │
+│    blur,       │ │ • ByteTrack   │ │ • LoiteringRule          │
+│    heatmap)    │ │   wrapper     │ │ • ClipManager            │
+│ • Zone         │ │               │ │ • SoundPlayer + TTS      │
+│ • VideoSource  │ │               │ │ • _save_unknown_snapshot │
+│ • VideoWorker  │ │               │ │                          │
 │ • Settings     │ │               │ │                          │
 │ • Sightings    │ │               │ │                          │
 │   Tracker      │ │               │ │                          │
+│ • Activity     │ │               │ │                          │
+│   Heatmap      │ │               │ │                          │
 └────────────────┘ └───────────────┘ └──────────────────────────┘
                           │                       │
                           ▼                       ▼
-                  ┌───────────────────────────────────────┐
-                  │           Storage (SQLite + JSON)     │
-                  │                                       │
-                  │ • EventsRepository    (events.db)     │
-                  │ • PersonSightingsRepo (events.db)     │
-                  │ • SettingsRepository  (settings.json) │
-                  │ • ZonesRepository     (zones.json)    │
-                  │ • known_faces/<name>/*.jpg            │
-                  └───────────────────────────────────────┘
+                  ┌────────────────────────────────────────────┐
+                  │           Storage (SQLite + JSON + FS)     │
+                  │                                            │
+                  │ • EventsRepository    (events.db)          │
+                  │     ─ event log + face_embedding BLOB      │
+                  │     ─ + snapshot_path TEXT                 │
+                  │     ─ find_by_embedding() — пошук по фото  │
+                  │ • PersonSightingsRepo (events.db)          │
+                  │ • SettingsRepository  (settings.json)      │
+                  │ • ZonesRepository     (zones.json)         │
+                  │ • known_faces/<name>/*.jpg (whitelist)     │
+                  │ • unknown_faces/*.jpg (snapshot гелерея)   │
+                  │ • activity_heatmap.npy (persistent grid)   │
+                  │ • clips/*.mp4 (відеокліпи навколо подій)   │
+                  └────────────────────────────────────────────┘
 ```
 
 ## 5.2. Шари детально
@@ -65,9 +77,9 @@
 | `tabs/live_tab.py` | Live-перегляд + керування детекторами |
 | `tabs/persons_tab.py` | CRUD whitelist, статистика появ |
 | `tabs/zones_tab.py` | Редактор полігональних зон |
-| `tabs/events_tab.py` | Журнал подій з фільтрами + PDF-експорт |
+| `tabs/events_tab.py` | Журнал подій + знімок обличчя + пошук по фото + PDF-експорт |
 | `tabs/statistics_tab.py` | Live-графіки агрегатів |
-| `tabs/settings_tab.py` | Налаштування з поясненнями |
+| `tabs/settings_tab.py` | Налаштування з поясненнями (privacy / heatmap inclusive) |
 | `widgets/camera_view.py` | Віджет з QPixmap-display'ом кадру + alert flash |
 | `widgets/clip_player.py` | QMediaPlayer для перегляду кліпів алертів |
 | `widgets/zone_canvas.py` | QPainter-canvas для редагування полігонів |
@@ -90,14 +102,15 @@
 | Файл | Що містить |
 |------|-----------|
 | `frame.py` | `Frame(image: ndarray, timestamp, index)` — атомарний кадр |
-| `types.py` | `Detection`, `ProcessingResult` — типи виводу детекторів |
-| `pipeline.py` | `DetectionPipeline` — оркеструє детектори + трекер + зони + overlay |
+| `types.py` | `Detection`, `ProcessingResult` — типи виводу детекторів (поле `face_embedding`) |
+| `pipeline.py` | `DetectionPipeline` — оркеструє детектори + трекер + зони + overlay + privacy blur + heatmap |
 | `zones.py` | `Zone(name, points)` — полігон з методом `contains()` |
 | `video_source.py` | Абстракція над USB / RTSP / файлом (`OpenCVVideoSource`) |
 | `video_worker.py` | `QThread`, що крутить read-loop і емітить `result_ready` |
-| `settings.py` | `Settings` dataclass — всі налаштування |
+| `settings.py` | `Settings` dataclass — всі налаштування (privacy / heatmap включно) |
 | `sightings_tracker.py` | Дебаунс-трекер появ відомих персон |
-| `alert_event.py` | `AlertEvent` — одна подія алерту |
+| `activity_heatmap.py` | Накопичувальна теплова карта руху, persistent у `.npy` |
+| `alert_event.py` | `AlertEvent` — одна подія алерту (поля `snapshot_path`, `face_embedding`) |
 
 ### 5.2.4. Detectors (`app/detectors/`)
 
@@ -126,7 +139,7 @@ class Detector(Protocol):
 
 | Файл | Призначення |
 |------|-------------|
-| `events_repo.py` | SQLite-репозиторій журналу подій + агрегації |
+| `events_repo.py` | SQLite-репозиторій журналу подій + агрегації + `find_by_embedding` |
 | `persons_repo.py` | SQLite-репозиторій лічильника появ персон |
 | `settings_repo.py` | JSON-серіалізація `Settings` |
 | `zones_repo.py` | JSON-серіалізація `list[Zone]` |

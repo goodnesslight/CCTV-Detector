@@ -19,6 +19,7 @@ class Detection:
     annotation: str | None = None
     zone_name: str | None = None
     person_name: str | None = None
+    face_embedding: np.ndarray | None = None
 
     @property
     def bbox(self) -> tuple[int, int, int, int]:
