@@ -32,6 +32,33 @@ def _ensure_model(filename: str, url: str) -> Path:
     return target
 
 
+def _embedding_sidecar_path(image_path: Path) -> Path:
+    """Файл .npy поряд з фото для збереження embedding'а напряму. Потрібен
+    коли фото — close-up crop обличчя (наприклад snapshot з події), на якому
+    YuNet не завжди детектує обличчя через щільне кадрування."""
+    return image_path.with_suffix(image_path.suffix + ".npy")
+
+
+def _load_embedding_sidecar(image_path: Path) -> np.ndarray | None:
+    sc = _embedding_sidecar_path(image_path)
+    if not sc.exists():
+        return None
+    try:
+        emb = np.load(sc).astype(np.float32).flatten()
+        if emb.size == 0:
+            return None
+        return emb
+    except Exception:
+        return None
+
+
+def _save_embedding_sidecar(image_path: Path, embedding: np.ndarray) -> None:
+    try:
+        np.save(_embedding_sidecar_path(image_path), embedding.astype(np.float32))
+    except Exception:
+        pass
+
+
 class FaceRecognizer:
     def __init__(
         self,
@@ -94,7 +121,9 @@ class FaceRecognizer:
             for img_path in sorted(person_dir.iterdir()):
                 if img_path.suffix.lower() not in IMAGE_EXTS:
                     continue
-                emb = self._embedding_from_path(img_path)
+                emb = _load_embedding_sidecar(img_path)
+                if emb is None:
+                    emb = self._embedding_from_path(img_path)
                 if emb is not None:
                     self._whitelist.setdefault(name, []).append(emb)
 
@@ -122,6 +151,38 @@ class FaceRecognizer:
                 target_dir.rmdir()
             raise ValueError("Обличчя не знайдено на фото")
 
+        _save_embedding_sidecar(target, emb)
+        self._whitelist.setdefault(name, []).append(emb)
+        return len(self._whitelist[name])
+
+    def add_person_with_embedding(
+        self, name: str, image_path: Path, embedding: np.ndarray,
+    ) -> int:
+        """Додає персону з готовим embedding'ом (наприклад зі збереженої події).
+        Не запускає YuNet+SFace на фото — це обходить обмеження YuNet на
+        close-up crop'ах, де детекція може не спрацювати через щільне кадрування."""
+        name = name.strip()
+        if not name:
+            raise ValueError("Ім'я не може бути порожнім")
+        if name.startswith(".") or any(c in name for c in r'\/:*?"<>|'):
+            raise ValueError("Ім'я містить недопустимі символи")
+
+        target_dir = self._dir / name
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        target = target_dir / image_path.name
+        i = 1
+        while target.exists():
+            target = target_dir / f"{image_path.stem}_{i}{image_path.suffix}"
+            i += 1
+        shutil.copy2(image_path, target)
+
+        emb = embedding.astype(np.float32).flatten()
+        norm = float(np.linalg.norm(emb))
+        if norm > 1e-8:
+            emb = emb / norm
+
+        _save_embedding_sidecar(target, emb)
         self._whitelist.setdefault(name, []).append(emb)
         return len(self._whitelist[name])
 

@@ -305,10 +305,18 @@ class EventsTab(QWidget):
         name, ok = QInputDialog.getText(self, "Додати до персон", "Ім'я нової персони:")
         if not ok or not name.strip():
             return
+        recognizer = self._services.face_recognizer()
         try:
-            count = self._services.face_recognizer().add_person(
-                name.strip(), ev.snapshot_path,
-            )
+            if ev.face_embedding is not None:
+                # Якщо в події вже є SFace-вектор з real-time recognition —
+                # використовуємо його напряму. YuNet погано працює на close-up
+                # crop'ах (snapshot — це обличчя з 20% padding), тож повторна
+                # детекція з фото часто падає з 'Обличчя не знайдено'.
+                count = recognizer.add_person_with_embedding(
+                    name.strip(), ev.snapshot_path, ev.face_embedding,
+                )
+            else:
+                count = recognizer.add_person(name.strip(), ev.snapshot_path)
         except Exception as exc:
             QMessageBox.warning(self, "Не вдалося додати", str(exc))
             return
